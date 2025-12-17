@@ -14,7 +14,7 @@ Ascendos est un SaaS qui aide les agences web et studios à communiquer efficace
 - **Backend:** Next.js API Routes + tRPC
 - **Database:** PostgreSQL (Neon) + Prisma
 - **Auth:** Clerk
-- **AI:** Anthropic Claude 3.5 Sonnet + OpenAI GPT-4o (backup)
+- **AI:** OpenAI GPT-5 mini + Anthropic Haiku 4.5 (backup)
 - **Payments:** Stripe
 - **Infrastructure:** Vercel + Upstash Redis
 

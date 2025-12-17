@@ -165,7 +165,7 @@ model Update {
   slackMessage    String   @db.Text
 
   // Métadonnées génération
-  generatedWith   String   // "claude-3.5-sonnet", "gpt-4o"
+  generatedWith   String   // "OpenAI GPT-5 mini", "Anthropic Haiku 4.5"
   tokensUsed      Int?
   generationTimeMs Int?
 
