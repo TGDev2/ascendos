@@ -1,0 +1,345 @@
+// Ascendos - Prisma Schema
+// Base de données PostgreSQL pour la gestion des updates sponsor-ready
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ORGANIZATIONS & USERS
+// ============================================================================
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  plan      Plan     @default(TRIAL)
+  seats     Int      @default(5)
+
+  users     User[]
+  projects  Project[]
+  settings  OrganizationSettings?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([plan])
+}
+
+enum Plan {
+  TRIAL
+  TEAM
+  AGENCY
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  clerkId         String   @unique
+  name            String?
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  role            Role     @default(MEMBER)
+
+  createdProjects Project[] @relation("ProjectCreator")
+  updates         Update[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([clerkId])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+// ============================================================================
+// PROJECTS
+// ============================================================================
+
+model Project {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?  @db.Text
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdById     String
+  createdBy       User @relation("ProjectCreator", fields: [createdById], references: [id])
+
+  // Profil "Maître" (sponsor)
+  masterProfileId String
+  masterProfile   MasterProfile @relation(fields: [masterProfileId], references: [id])
+
+  // Objectifs de communication (tags)
+  objectives      String[] // ["rassurer", "validation", "COPIL", "arbitrage"]
+
+  // Métadonnées sponsor
+  sponsorName     String?
+  sponsorRole     String?
+  sponsorEmail    String?
+
+  // Relations
+  updates         Update[]
+  decisions       Decision[]
+  risks           Risk[]
+
+  archived        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([organizationId, archived])
+  @@index([createdById])
+}
+
+// ============================================================================
+// MASTER PROFILES (Profils de sponsors)
+// ============================================================================
+
+model MasterProfile {
+  id          String   @id @default(cuid())
+  name        String   // "Non-tech confiant", "Micro-manager", "Comité risque-averse"
+  slug        String   @unique
+  description String   @db.Text
+
+  // Configuration de génération
+  tone        String   // "respectueux, sûr", "précis, rassurant", etc.
+  constraints String[] // ["max 250 mots", "pas de jargon technique", "toujours dater"]
+  vocabulary  Json     // { avoid: [...], prefer: [...] }
+
+  // Preset ou custom
+  isCustom    Boolean  @default(false)
+  organizationId String?
+
+  projects    Project[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
+  @@index([isCustom])
+}
+
+// ============================================================================
+// UPDATES (Updates hebdomadaires)
+// ============================================================================
+
+model Update {
+  id              String   @id @default(cuid())
+
+  projectId       String
+  project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdById     String
+  createdBy       User @relation(fields: [createdById], references: [id])
+
+  // Numéro de semaine (S50, 2024-W50)
+  weekNumber      String
+  year            Int
+
+  // Input structuré
+  facts           Json     // [{ text: "...", source?: "..." }]
+  decisionsNeeded Json     // [{ description: "...", deadline?: "..." }]
+  risksInput      Json     // [{ description: "...", impact: "...", mitigation?: "..." }]
+
+  // Input brut (optionnel si coller brut)
+  rawInput        String?  @db.Text
+
+  // Template situation utilisé
+  situationType   SituationType
+
+  // Output généré
+  emailSubject    String
+  emailBody       String   @db.Text
+  slackMessage    String   @db.Text
+
+  // Métadonnées génération
+  generatedWith   String   // "claude-3.5-sonnet", "gpt-4o"
+  tokensUsed      Int?
+  generationTimeMs Int?
+
+  // Actions utilisateur
+  wasCopied       Boolean  @default(false)
+  wasSent         Boolean  @default(false)
+  sentAt          DateTime?
+
+  // Extraction automatique
+  extractedDecisions Decision[]
+  extractedRisks     Risk[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([projectId, year, weekNumber])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([createdById])
+}
+
+enum SituationType {
+  NORMAL           // Semaine normale (continuité)
+  VALIDATION       // Validation attendue
+  RISK             // Semaine de risque
+  DELAY            // Retard
+  ARBITRAGE        // Arbitrage scope/budget
+  PRE_COPIL        // Pré-COPIL
+}
+
+// ============================================================================
+// DECISIONS (Log des décisions)
+// ============================================================================
+
+model Decision {
+  id          String   @id @default(cuid())
+
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  updateId    String?
+  update      Update? @relation(fields: [updateId], references: [id], onDelete: SetNull)
+
+  // Contenu
+  description String   @db.Text
+  context     String?  @db.Text
+  outcome     String?  @db.Text // Si décision prise
+
+  // Métadonnées
+  decidedBy   String?  // "Sophie (sponsor)", "Équipe", etc.
+  decidedAt   DateTime?
+
+  // Liens & tags
+  tags        String[] // ["scope", "tech", "budget", "délai"]
+
+  status      DecisionStatus @default(PENDING)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([projectId, status])
+  @@index([updateId])
+}
+
+enum DecisionStatus {
+  PENDING      // En attente
+  DECIDED      // Décidée
+  CANCELLED    // Annulée
+}
+
+// ============================================================================
+// RISKS (Registre des risques)
+// ============================================================================
+
+model Risk {
+  id          String   @id @default(cuid())
+
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  updateId    String?
+  update      Update? @relation(fields: [updateId], references: [id], onDelete: SetNull)
+
+  // Contenu
+  description String   @db.Text
+  impact      String   // "bloquant", "retard 2j", "validation retardée"
+  mitigation  String?  @db.Text
+
+  // Timeline
+  identifiedAt DateTime @default(now())
+  reviewDate   DateTime?
+  resolvedAt   DateTime?
+
+  // Statut & sévérité
+  severity    RiskSeverity
+  status      RiskStatus @default(OPEN)
+
+  // Liens & tags
+  tags        String[] // ["legal", "tech", "externe", "interne"]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId, status, createdAt(sort: Desc)])
+  @@index([projectId, severity])
+  @@index([updateId])
+}
+
+enum RiskSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskStatus {
+  OPEN         // Ouvert
+  MONITORING   // En surveillance
+  MITIGATED    // Mitigé
+  RESOLVED     // Résolu
+  CANCELLED    // Annulé
+}
+
+// ============================================================================
+// ORGANIZATION SETTINGS
+// ============================================================================
+
+model OrganizationSettings {
+  id              String   @id @default(cuid())
+
+  organizationId  String   @unique
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // RGPD / Confidentialité
+  dataRetentionDays Int    @default(365)
+  autoRedaction     Boolean @default(false)
+  storeRawInput     Boolean @default(true)
+
+  // LLM
+  customApiKey      String?  @db.Text // Chiffré (BYOK)
+  preferredProvider String   @default("anthropic") // "anthropic" | "openai"
+
+  // Notifications
+  weeklyReminderEnabled Boolean @default(true)
+  weeklyReminderDay     Int     @default(5) // Vendredi = 5
+  weeklyReminderHour    Int     @default(9) // 9h
+
+  // Exports
+  exportBranding    Boolean  @default(true)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ============================================================================
+// USAGE LOGS (Tracking & Analytics)
+// ============================================================================
+
+model UsageLog {
+  id              String   @id @default(cuid())
+
+  organizationId  String
+  userId          String?
+
+  action          String   // "generate_update", "export_pdf", "parse_raw"
+
+  tokensUsed      Int?
+  modelUsed       String?
+
+  metadata        Json?
+
+  createdAt       DateTime @default(now())
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([action])
+}
