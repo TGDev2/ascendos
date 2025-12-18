@@ -21,5 +21,14 @@ export const updateRiskSchema = z.object({
   tags: z.array(z.string()).optional(),
 });
 
+export const listRisksSchema = z.object({
+  projectId: z.string().cuid(),
+  status: z.array(z.enum(['OPEN', 'MONITORING', 'MITIGATED', 'RESOLVED', 'CANCELLED'])).optional(),
+  severity: z.array(z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])).optional(),
+  limit: z.number().min(1).max(100).default(50),
+  offset: z.number().min(0).default(0),
+});
+
 export type CreateRiskInput = z.infer<typeof createRiskSchema>;
 export type UpdateRiskInput = z.infer<typeof updateRiskSchema>;
+export type ListRisksInput = z.infer<typeof listRisksSchema>;

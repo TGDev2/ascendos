@@ -264,6 +264,13 @@ export default function UpdateDetailPage({ params }: PageProps) {
                     </div>
                   </div>
                 ))}
+                <div className="pt-3 border-t">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/projects/${projectId}/decisions`}>
+                      Voir toutes les décisions
+                    </Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -319,6 +326,13 @@ export default function UpdateDetailPage({ params }: PageProps) {
                     </div>
                   </div>
                 ))}
+                <div className="pt-3 border-t">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/projects/${projectId}/risks`}>
+                      Voir tous les risques
+                    </Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}

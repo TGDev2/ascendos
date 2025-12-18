@@ -8,6 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UpdatesList } from "@/components/projects/updates-list";
+import { DecisionsList } from "@/components/projects/decisions-list";
+import { RisksList } from "@/components/projects/risks-list";
+import { GlobalSearchBar } from "@/components/projects/global-search-bar";
 import {
   ArrowLeft,
   Plus,
@@ -85,6 +88,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <GlobalSearchBar projectId={project.id} />
           <Button
             variant="outline"
             onClick={() =>
@@ -182,32 +186,42 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
         <TabsContent value="decisions" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Log des décisions</CardTitle>
-              <CardDescription>
-                Toutes les décisions identifiées et tracées
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Log des décisions</CardTitle>
+                <CardDescription>
+                  Dernières décisions identifiées
+                </CardDescription>
+              </div>
+              <Button variant="outline" asChild>
+                <Link href={`/projects/${project.id}/decisions`}>
+                  Voir tout ({project._count.decisions})
+                </Link>
+              </Button>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Timeline des décisions (à implémenter)
-              </p>
+              <DecisionsList projectId={project.id} limit={5} />
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="risks" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Registre des risques</CardTitle>
-              <CardDescription>
-                Tous les risques identifiés et leur statut
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Registre des risques</CardTitle>
+                <CardDescription>
+                  Derniers risques identifiés
+                </CardDescription>
+              </div>
+              <Button variant="outline" asChild>
+                <Link href={`/projects/${project.id}/risks`}>
+                  Voir tout ({project._count.risks})
+                </Link>
+              </Button>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Timeline des risques (à implémenter)
-              </p>
+              <RisksList projectId={project.id} limit={5} />
             </CardContent>
           </Card>
         </TabsContent>
