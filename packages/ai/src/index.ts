@@ -1,2 +1,3 @@
 export * from './prompts/generate-update';
 export * from './providers';
+export * from './extraction';

@@ -123,3 +123,18 @@ export function getMasterProfile(slug: string): MasterProfileConfig | undefined 
 export function getAllMasterProfiles(): MasterProfileConfig[] {
   return Object.values(MASTER_PROFILES);
 }
+
+// Helper for components that need profiles with IDs
+export interface MasterProfileWithId extends MasterProfileConfig {
+  id: string;
+}
+
+export function getMasterProfilesForUI(): MasterProfileWithId[] {
+  return Object.values(MASTER_PROFILES).map(profile => ({
+    ...profile,
+    id: profile.slug,
+  }));
+}
+
+// Alias for backward compatibility
+export const masterProfiles = getMasterProfilesForUI();
