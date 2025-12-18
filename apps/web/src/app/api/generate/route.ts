@@ -4,6 +4,8 @@ import { getModel } from '@ascendos/ai';
 import { buildGenerateUpdatePrompt } from '@ascendos/ai';
 import { getMasterProfile, getSituationTemplate } from '@ascendos/templates';
 import { generatedUpdateOutputSchema } from '@ascendos/validators';
+import { auth } from '@clerk/nextjs/server';
+import { db, rateLimiter } from '@ascendos/database';
 
 export const runtime = 'edge';
 export const maxDuration = 30;
@@ -27,6 +29,65 @@ export async function POST(req: NextRequest) {
         { error: 'Missing required fields: masterProfileSlug and situationType' },
         { status: 400 }
       );
+    }
+
+    // Rate limiting (pour utilisateurs authentifiés)
+    const { userId } = await auth();
+
+    if (userId) {
+      // Récupérer l'utilisateur et son organisation
+      const user = await db.user.findUnique({
+        where: { clerkId: userId },
+        include: { organization: true },
+      });
+
+      if (!user || !user.organization) {
+        return NextResponse.json(
+          { error: 'User or organization not found' },
+          { status: 404 }
+        );
+      }
+
+      // Vérifier si le trial est expiré
+      if (user.organization.plan === 'TRIAL' && user.organization.trialEndsAt) {
+        const now = new Date();
+        if (now > new Date(user.organization.trialEndsAt)) {
+          return NextResponse.json(
+            {
+              error: 'Trial expired',
+              message: 'Votre période d\'essai est expirée. Veuillez upgrader votre plan pour continuer.',
+              upgradeUrl: '/settings/billing',
+            },
+            { status: 403 }
+          );
+        }
+      }
+
+      // Vérifier le rate limit
+      const rateLimitResult = await rateLimiter.checkAndIncrement(
+        user.organization.plan,
+        user.organization.id,
+        user.id,
+        user.organization.trialEndsAt
+      );
+
+      if (!rateLimitResult.allowed) {
+        const message = user.organization.plan === 'TRIAL'
+          ? `Limite atteinte (${rateLimitResult.limit} générations pour le trial). Veuillez upgrader votre plan.`
+          : `Limite quotidienne atteinte (${rateLimitResult.limit} générations/jour). Revenez demain ou upgradez votre plan.`;
+
+        return NextResponse.json(
+          {
+            error: 'Rate limit exceeded',
+            message,
+            limit: rateLimitResult.limit,
+            remaining: rateLimitResult.remaining,
+            resetAt: rateLimitResult.resetAt,
+            upgradeUrl: '/settings/billing',
+          },
+          { status: 429 }
+        );
+      }
     }
 
     // Get master profile and situation template
@@ -80,6 +141,26 @@ export async function POST(req: NextRequest) {
     });
 
     const generationTimeMs = Date.now() - startTime;
+
+    // Logger l'usage si authentifié
+    if (userId) {
+      const user = await db.user.findUnique({
+        where: { clerkId: userId },
+        select: { id: true, organizationId: true },
+      });
+
+      if (user) {
+        await db.usageLog.create({
+          data: {
+            organizationId: user.organizationId,
+            userId: user.id,
+            action: 'generate_update',
+            tokensUsed: usage?.totalTokens || 0,
+            modelUsed: 'gpt-5-mini-2025-08-07',
+          },
+        });
+      }
+    }
 
     // Parse JSON response
     let output;

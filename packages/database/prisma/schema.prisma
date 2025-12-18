@@ -20,6 +20,20 @@ model Organization {
   plan      Plan     @default(TRIAL)
   seats     Int      @default(5)
 
+  // Trial Management
+  trialEndsAt      DateTime?
+  trialGenerations Int      @default(0)
+
+  // Stripe Integration
+  stripeCustomerId       String?   @unique
+  stripeSubscriptionId   String?   @unique
+  stripePriceId          String?
+  stripeCurrentPeriodEnd DateTime?
+
+  // Billing Status
+  billingEmail      String?
+  cancelAtPeriodEnd Boolean  @default(false)
+
   users     User[]
   projects  Project[]
   settings  OrganizationSettings?
@@ -28,6 +42,8 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   @@index([plan])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
 }
 
 enum Plan {
@@ -342,4 +358,5 @@ model UsageLog {
   @@index([organizationId, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
   @@index([action])
+  @@index([organizationId, action, createdAt(sort: Desc)])
 }

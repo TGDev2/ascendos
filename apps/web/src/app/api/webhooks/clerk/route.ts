@@ -60,6 +60,8 @@ export async function POST(req: Request) {
         data: {
           name: `${first_name || "User"}'s Organization`,
           plan: "TRIAL",
+          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // +7 jours
+          trialGenerations: 0,
         },
       });
 
@@ -118,6 +120,8 @@ export async function POST(req: Request) {
           id,
           name,
           plan: "TRIAL",
+          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // +7 jours
+          trialGenerations: 0,
         },
       });
 

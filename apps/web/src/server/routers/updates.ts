@@ -168,6 +168,38 @@ export const updatesRouter = createTRPCRouter({
         },
       });
 
+      // Logger l'usage
+      await ctx.db.usageLog.create({
+        data: {
+          organizationId: project.organizationId,
+          userId: ctx.userId,
+          action: 'generate_update',
+          tokensUsed: input.tokensUsed || 0,
+          modelUsed: input.generatedWith,
+          metadata: {
+            projectId: input.projectId,
+            updateId: update.id,
+          },
+        },
+      });
+
+      // Incrémenter le compteur trial si l'organisation est en TRIAL
+      const org = await ctx.db.organization.findUnique({
+        where: { id: project.organizationId },
+        select: { plan: true },
+      });
+
+      if (org?.plan === 'TRIAL') {
+        await ctx.db.organization.update({
+          where: { id: project.organizationId },
+          data: {
+            trialGenerations: {
+              increment: 1,
+            },
+          },
+        });
+      }
+
       // Extraction automatique des décisions et risques en arrière-plan
       // Ne pas bloquer la réponse si l'extraction échoue
       extractEntitiesFromUpdate(input.emailBody as string, input.slackMessage as string)
