@@ -5,6 +5,7 @@ import { decisionsRouter } from "./decisions";
 import { risksRouter } from "./risks";
 import { searchRouter } from "./search";
 import { billingRouter } from "./billing";
+import { settingsRouter } from "./settings";
 
 /**
  * Router principal tRPC
@@ -17,6 +18,7 @@ export const appRouter = createTRPCRouter({
   risks: risksRouter,
   search: searchRouter,
   billing: billingRouter,
+  settings: settingsRouter,
 });
 
 export type AppRouter = typeof appRouter;

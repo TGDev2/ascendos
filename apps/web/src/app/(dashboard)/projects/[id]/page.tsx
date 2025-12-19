@@ -11,6 +11,7 @@ import { UpdatesList } from "@/components/projects/updates-list";
 import { DecisionsList } from "@/components/projects/decisions-list";
 import { RisksList } from "@/components/projects/risks-list";
 import { GlobalSearchBar } from "@/components/projects/global-search-bar";
+import { ExportDossier } from "@/components/projects/export-dossier";
 import {
   ArrowLeft,
   Plus,
@@ -227,19 +228,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         </TabsContent>
 
         <TabsContent value="export" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Exporter le dossier</CardTitle>
-              <CardDescription>
-                Générez un dossier de continuité complet en PDF
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Options d'export (à implémenter dans Phase 4)
-              </p>
-            </CardContent>
-          </Card>
+          <ExportDossier projectId={project.id} projectName={project.name} />
         </TabsContent>
       </Tabs>
     </div>
