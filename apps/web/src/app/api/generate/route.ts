@@ -44,17 +44,39 @@ export async function POST(req: NextRequest) {
 
       // En production, vérifier que la requête vient bien de votre domaine
       if (process.env.NODE_ENV === 'production') {
-        const allowedDomains = [
-          host, // Le domaine actuel
-          process.env.NEXT_PUBLIC_APP_URL, // URL configurée
-        ].filter(Boolean);
+        // Extraire les hostnames autorisés de manière sécurisée
+        const allowedHostnames: string[] = [];
 
-        const isValidOrigin = origin && allowedDomains.some(domain =>
-          origin.includes(domain?.replace(/^https?:\/\//, '') || '')
-        );
-        const isValidReferer = referer && allowedDomains.some(domain =>
-          referer.includes(domain?.replace(/^https?:\/\//, '') || '')
-        );
+        if (host) {
+          // host peut être "domain.com" ou "domain.com:port"
+          allowedHostnames.push(host.split(':')[0]);
+        }
+
+        if (process.env.NEXT_PUBLIC_APP_URL) {
+          try {
+            const appUrl = new URL(process.env.NEXT_PUBLIC_APP_URL);
+            allowedHostnames.push(appUrl.hostname);
+          } catch {
+            // URL invalide, ignorer
+          }
+        }
+
+        // Validation stricte par comparaison de hostname exact
+        const getHostname = (url: string): string | null => {
+          try {
+            return new URL(url).hostname;
+          } catch {
+            return null;
+          }
+        };
+
+        const originHostname = origin ? getHostname(origin) : null;
+        const refererHostname = referer ? getHostname(referer) : null;
+
+        const isValidOrigin = originHostname !== null &&
+          allowedHostnames.some(allowed => originHostname === allowed);
+        const isValidReferer = refererHostname !== null &&
+          allowedHostnames.some(allowed => refererHostname === allowed);
 
         if (!isValidOrigin && !isValidReferer) {
           const ip = req.headers.get('x-forwarded-for')

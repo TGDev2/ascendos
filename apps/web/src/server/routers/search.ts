@@ -9,11 +9,11 @@ export const searchRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string().cuid(),
-        query: z.string().min(1),
+        query: z.string().min(1).max(200),
         dateFrom: z.date().optional(),
         dateTo: z.date().optional(),
-        situationType: z.string().optional(),
-        tags: z.array(z.string()).optional(),
+        situationType: z.string().max(50).optional(),
+        tags: z.array(z.string().max(50)).max(10).optional(),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -103,9 +103,9 @@ export const searchRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string().cuid(),
-        query: z.string().min(1),
+        query: z.string().min(1).max(200),
         status: z.enum(["PENDING", "DECIDED", "CANCELLED"]).optional(),
-        tags: z.array(z.string()).optional(),
+        tags: z.array(z.string().max(50)).max(10).optional(),
         dateFrom: z.date().optional(),
         dateTo: z.date().optional(),
       })
@@ -209,10 +209,10 @@ export const searchRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string().cuid(),
-        query: z.string().min(1),
+        query: z.string().min(1).max(200),
         status: z.enum(["OPEN", "MONITORING", "MITIGATED", "RESOLVED", "CANCELLED"]).optional(),
         severity: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
-        tags: z.array(z.string()).optional(),
+        tags: z.array(z.string().max(50)).max(10).optional(),
         dateFrom: z.date().optional(),
         dateTo: z.date().optional(),
       })

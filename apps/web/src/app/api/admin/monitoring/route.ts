@@ -20,18 +20,26 @@ export async function GET(_req: NextRequest) {
       );
     }
 
-    // Vérifier que l'utilisateur est admin
+    // Vérifier que l'utilisateur est admin/owner
     const user = await db.user.findUnique({
       where: { clerkId: userId },
       include: { organization: true },
     });
 
-    // TODO: Ajouter un champ 'role' dans la DB pour vérifier si l'user est admin
-    // Pour l'instant, on vérifie juste que l'utilisateur existe
     if (!user) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
+      );
+    }
+
+    // Vérifier que l'utilisateur est OWNER de son organisation
+    // Seuls les owners ont accès aux données de monitoring sensibles
+    if (user.role !== 'OWNER') {
+      console.warn(`[Monitoring] Unauthorized access attempt by user ${user.id} with role ${user.role}`);
+      return NextResponse.json(
+        { error: 'Access denied. Only organization owners can access monitoring data.' },
+        { status: 403 }
       );
     }
 

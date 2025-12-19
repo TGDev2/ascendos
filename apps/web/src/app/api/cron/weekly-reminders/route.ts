@@ -14,12 +14,20 @@ export const maxDuration = 60;
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret for security
+    // Verify cron secret for security (MANDATORY)
     const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      console.error("[Weekly Reminders] Unauthorized cron request");
+    if (!cronSecret) {
+      console.error("[Weekly Reminders] CRON_SECRET is not configured - endpoint disabled for security");
+      return NextResponse.json(
+        { error: "Server configuration error: CRON_SECRET required" },
+        { status: 500 }
+      );
+    }
+
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      console.error("[Weekly Reminders] Unauthorized cron request - invalid or missing authorization header");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
