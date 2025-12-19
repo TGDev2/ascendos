@@ -18,6 +18,7 @@ export interface UsageResult {
  * Rate Limiter Service avec Upstash Redis
  *
  * Limites:
+ * - ANONYMOUS: 3 générations/heure/IP (protection anti-abuse)
  * - TRIAL: 5 générations totales (pour toute l'organisation, pendant le trial)
  * - TEAM: 10 générations/jour/utilisateur
  * - AGENCY: 50 générations/jour/utilisateur
@@ -105,6 +106,63 @@ export class RateLimiter {
         allowed: true,
         limit: this.getPlanLimit(plan),
         remaining: 999,
+      };
+    }
+  }
+
+  /**
+   * Vérifie et incrémente le rate limit pour les requêtes anonymes (par IP)
+   * Limite: 3 requêtes par heure par IP
+   */
+  async checkAnonymousRequest(ip: string): Promise<RateLimitResult> {
+    try {
+      // Normaliser l'IP (enlever les espaces, gérer IPv6, etc.)
+      const normalizedIp = ip.trim().split(',')[0].trim(); // Prendre la première IP si X-Forwarded-For contient plusieurs IPs
+
+      if (!normalizedIp || normalizedIp === 'unknown') {
+        // Si on ne peut pas déterminer l'IP, on bloque par sécurité
+        console.warn('⚠️  Unable to determine IP for anonymous request');
+        return {
+          allowed: false,
+          limit: 3,
+          remaining: 0,
+        };
+      }
+
+      const key = `rate_limit:anonymous:${normalizedIp}:${this.getHourKey()}`;
+      const limit = 3; // 3 requêtes par heure
+      const ttl = 3600; // 1 heure en secondes
+
+      // Incrémenter le compteur atomiquement
+      const count = await this.redis.incr(key);
+
+      // Si c'est la première incrémentation, définir le TTL
+      if (count === 1) {
+        await this.redis.expire(key, ttl);
+      }
+
+      // Calculer le resetAt
+      const ttlRemaining = await this.redis.ttl(key);
+      const resetAt = ttlRemaining > 0
+        ? new Date(Date.now() + ttlRemaining * 1000)
+        : new Date(Date.now() + ttl * 1000);
+
+      const allowed = count <= limit;
+      const remaining = Math.max(0, limit - count);
+
+      return {
+        allowed,
+        limit,
+        remaining,
+        resetAt,
+      };
+    } catch (error) {
+      // En cas d'erreur Redis, on BLOQUE par sécurité (fail closed pour les anonymes)
+      console.error('❌ Rate limiter error for anonymous request:', error);
+      return {
+        allowed: false,
+        limit: 3,
+        remaining: 0,
       };
     }
   }
@@ -219,6 +277,19 @@ export class RateLimiter {
   }
 
   /**
+   * Retourne la clé de date+heure UTC au format YYYY-MM-DD-HH
+   * Pour les rate limits horaires (anonymes)
+   */
+  private getHourKey(): string {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(now.getUTCDate()).padStart(2, "0");
+    const hour = String(now.getUTCHours()).padStart(2, "0");
+    return `${year}-${month}-${day}-${hour}`;
+  }
+
+  /**
    * Calcule le nombre de secondes jusqu'à minuit UTC
    * Pour définir le TTL des clés quotidiennes
    */
@@ -260,6 +331,72 @@ export class RateLimiter {
       await this.redis.del(key);
     } catch (error) {
       console.error("❌ Error resetting user limit:", error);
+    }
+  }
+
+  /**
+   * Track une IP qui a atteint la limite (pour monitoring et alertes)
+   * Stocke dans Redis avec TTL de 24h
+   */
+  async trackBlockedIP(ip: string, reason: string): Promise<void> {
+    try {
+      const key = `blocked_ips:${this.getDateKey()}`;
+      const value = JSON.stringify({
+        ip,
+        reason,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Ajouter à une liste Redis (sorted set avec score = timestamp)
+      await this.redis.zadd(key, {
+        score: Date.now(),
+        member: value,
+      });
+
+      // TTL de 7 jours pour garder l'historique
+      await this.redis.expire(key, 7 * 24 * 3600);
+    } catch (error) {
+      console.error("❌ Error tracking blocked IP:", error);
+    }
+  }
+
+  /**
+   * Récupère les IPs bloquées récemment (pour dashboard de monitoring)
+   */
+  async getBlockedIPs(limit: number = 100): Promise<Array<{
+    ip: string;
+    reason: string;
+    timestamp: string;
+  }>> {
+    try {
+      const key = `blocked_ips:${this.getDateKey()}`;
+      const results = await this.redis.zrange(key, 0, limit - 1, {
+        rev: true, // Plus récents en premier
+      }) as string[];
+
+      return results.map((item) => JSON.parse(item));
+    } catch (error) {
+      console.error("❌ Error getting blocked IPs:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Vérifie si une IP a été bloquée plusieurs fois (pattern d'abuse)
+   * Retourne le nombre de fois qu'elle a été bloquée dans les dernières 24h
+   */
+  async getIPBlockCount(ip: string): Promise<number> {
+    try {
+      const key = `blocked_ips:${this.getDateKey()}`;
+      const results = await this.redis.zrange(key, 0, -1) as string[];
+
+      return results.filter((item) => {
+        const data = JSON.parse(item);
+        return data.ip === ip;
+      }).length;
+    } catch (error) {
+      console.error("❌ Error getting IP block count:", error);
+      return 0;
     }
   }
 }

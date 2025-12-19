@@ -5,9 +5,10 @@ import { buildGenerateUpdatePrompt } from '@ascendos/ai';
 import { getMasterProfile, getSituationTemplate } from '@ascendos/templates';
 import { generatedUpdateOutputSchema } from '@ascendos/validators';
 import { auth } from '@clerk/nextjs/server';
-import { db, rateLimiter } from '@ascendos/database';
+import { db, rateLimiter, alertSystem } from '@ascendos/database';
 
-export const runtime = 'edge';
+// Prisma requires Node.js runtime (incompatible with edge)
+export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 interface GenerateRequest {
@@ -31,9 +32,167 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Rate limiting (pour utilisateurs authentifiés)
+    // Check authentication
     const { userId } = await auth();
 
+    // Protection pour utilisateurs anonymes
+    if (!userId) {
+      // 1. Validation des headers Origin/Referer (protection contre les requêtes cross-origin non autorisées)
+      const origin = req.headers.get('origin');
+      const referer = req.headers.get('referer');
+      const host = req.headers.get('host');
+
+      // En production, vérifier que la requête vient bien de votre domaine
+      if (process.env.NODE_ENV === 'production') {
+        const allowedDomains = [
+          host, // Le domaine actuel
+          process.env.NEXT_PUBLIC_APP_URL, // URL configurée
+        ].filter(Boolean);
+
+        const isValidOrigin = origin && allowedDomains.some(domain =>
+          origin.includes(domain?.replace(/^https?:\/\//, '') || '')
+        );
+        const isValidReferer = referer && allowedDomains.some(domain =>
+          referer.includes(domain?.replace(/^https?:\/\//, '') || '')
+        );
+
+        if (!isValidOrigin && !isValidReferer) {
+          const ip = req.headers.get('x-forwarded-for')
+            || req.headers.get('x-real-ip')
+            || 'unknown';
+
+          // Logger et envoyer une alerte
+          console.warn(`[SECURITY] Blocked request from invalid origin/referer: ${origin || referer || 'none'}`);
+          await alertSystem.send(
+            alertSystem.unauthorizedAccessAlert(
+              ip,
+              `Invalid origin/referer: ${origin || referer || 'none'}`
+            )
+          );
+
+          return NextResponse.json(
+            {
+              error: 'Invalid request origin',
+              message: 'Les requêtes doivent provenir du domaine autorisé.',
+            },
+            { status: 403 }
+          );
+        }
+      }
+
+      // 2. Extraire l'IP de la requête
+      const ip = req.headers.get('x-forwarded-for')
+        || req.headers.get('x-real-ip')
+        || 'unknown';
+
+      // 3. Rate limiting par IP (3 requêtes/heure)
+      const rateLimitResult = await rateLimiter.checkAnonymousRequest(ip);
+
+      if (!rateLimitResult.allowed) {
+        // Tracker l'IP bloquée pour monitoring
+        await rateLimiter.trackBlockedIP(ip, 'rate_limit_exceeded');
+
+        // Vérifier si c'est un pattern d'abuse (bloqué plusieurs fois)
+        const blockCount = await rateLimiter.getIPBlockCount(ip);
+        if (blockCount >= 5) {
+          // Envoyer une alerte pour activité suspecte
+          await alertSystem.send(alertSystem.rateLimitAlert(ip, blockCount));
+        }
+
+        return NextResponse.json(
+          {
+            error: 'Rate limit exceeded',
+            message: 'Vous avez atteint la limite de 3 générations par heure pour les utilisateurs non connectés. Créez un compte gratuit pour obtenir plus de générations.',
+            limit: rateLimitResult.limit,
+            remaining: rateLimitResult.remaining,
+            resetAt: rateLimitResult.resetAt,
+            signUpUrl: '/sign-up',
+          },
+          { status: 429 }
+        );
+      }
+
+      // 4. Validation stricte des inputs pour les anonymes
+      if (body.facts.length > 5) {
+        return NextResponse.json(
+          {
+            error: 'Input limit exceeded',
+            message: 'Maximum 5 faits autorisés pour les utilisateurs non connectés. Créez un compte pour plus de capacité.',
+            signUpUrl: '/sign-up',
+          },
+          { status: 400 }
+        );
+      }
+
+      if (body.decisionsNeeded.length > 3) {
+        return NextResponse.json(
+          {
+            error: 'Input limit exceeded',
+            message: 'Maximum 3 décisions autorisées pour les utilisateurs non connectés. Créez un compte pour plus de capacité.',
+            signUpUrl: '/sign-up',
+          },
+          { status: 400 }
+        );
+      }
+
+      if (body.risksInput.length > 3) {
+        return NextResponse.json(
+          {
+            error: 'Input limit exceeded',
+            message: 'Maximum 3 risques autorisés pour les utilisateurs non connectés. Créez un compte pour plus de capacité.',
+            signUpUrl: '/sign-up',
+          },
+          { status: 400 }
+        );
+      }
+
+      // 5. Validation de la longueur des textes pour éviter l'abuse
+      const maxTextLength = 500;
+
+      for (const fact of body.facts) {
+        if (fact.text.length > maxTextLength) {
+          return NextResponse.json(
+            {
+              error: 'Input too long',
+              message: `Chaque fait doit faire maximum ${maxTextLength} caractères pour les utilisateurs non connectés.`,
+              signUpUrl: '/sign-up',
+            },
+            { status: 400 }
+          );
+        }
+      }
+
+      for (const decision of body.decisionsNeeded) {
+        if (decision.description.length > maxTextLength) {
+          return NextResponse.json(
+            {
+              error: 'Input too long',
+              message: `Chaque décision doit faire maximum ${maxTextLength} caractères pour les utilisateurs non connectés.`,
+              signUpUrl: '/sign-up',
+            },
+            { status: 400 }
+          );
+        }
+      }
+
+      for (const risk of body.risksInput) {
+        if (risk.description.length > maxTextLength || risk.impact.length > maxTextLength) {
+          return NextResponse.json(
+            {
+              error: 'Input too long',
+              message: `Chaque risque doit faire maximum ${maxTextLength} caractères pour les utilisateurs non connectés.`,
+              signUpUrl: '/sign-up',
+            },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Log pour monitoring (sans données sensibles)
+      console.log(`[ANONYMOUS] Generation request from IP: ${ip.substring(0, 10)}... | Remaining: ${rateLimitResult.remaining}`);
+    }
+
+    // Rate limiting pour utilisateurs authentifiés
     if (userId) {
       // Récupérer l'utilisateur et son organisation
       const user = await db.user.findUnique({
@@ -131,13 +290,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate with OpenAI (gpt-5-mini-2025-08-07)
+    // Réduction drastique de maxTokens pour les utilisateurs anonymes (75% de réduction)
+    const maxTokens = userId ? 2000 : 500;
+
     const startTime = Date.now();
     const { text, usage } = await generateText({
       model: getModel('openai', 'gpt-5-mini-2025-08-07'),
       system,
       prompt: user,
       temperature: 0.7,
-      maxTokens: 2000,
+      maxTokens,
     });
 
     const generationTimeMs = Date.now() - startTime;
