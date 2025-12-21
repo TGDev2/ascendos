@@ -2,6 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
+import type { Decision, Risk } from "@ascendos/database";
 import { trpc } from "@/lib/trpc/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -242,7 +243,7 @@ export default function UpdateDetailPage({ params }: PageProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {update.extractedDecisions.map((decision) => (
+                {update.extractedDecisions.map((decision: Decision) => (
                   <div key={decision.id} className="rounded-lg border p-4">
                     <p className="font-medium">{decision.description}</p>
                     {decision.context && (
@@ -288,7 +289,7 @@ export default function UpdateDetailPage({ params }: PageProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {update.extractedRisks.map((risk) => (
+                {update.extractedRisks.map((risk: Risk) => (
                   <div key={risk.id} className="rounded-lg border p-4">
                     <div className="flex items-start justify-between">
                       <p className="font-medium">{risk.description}</p>
