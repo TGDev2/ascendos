@@ -30,6 +30,26 @@ export default function MarketingLayout({
           <p className="text-center text-sm leading-loose text-muted-foreground md:text-left">
             © 2025 Ascendos. Tous droits réservés.
           </p>
+          <nav className="flex items-center gap-4">
+            <a
+              href="/legal/terms"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              CGU
+            </a>
+            <a
+              href="/legal/privacy"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Confidentialité
+            </a>
+            <a
+              href="/legal/dpa"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              DPA
+            </a>
+          </nav>
         </div>
       </footer>
     </div>
