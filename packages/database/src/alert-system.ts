@@ -252,6 +252,87 @@ export class AlertSystem {
       },
     };
   }
+
+  /**
+   * Helper pour créer une alerte d'échec de paiement Stripe
+   */
+  paymentFailedAlert(organizationId: string, invoiceId: string, amount?: number): Alert {
+    return {
+      level: 'warning',
+      title: 'Payment Failed',
+      message: `A subscription payment has failed. The organization's subscription will be cancelled at period end unless payment is updated.`,
+      metadata: {
+        organizationId,
+        invoiceId,
+        amount,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  /**
+   * Helper pour créer une alerte d'erreur webhook Stripe
+   */
+  stripeWebhookErrorAlert(eventType: string, error: string): Alert {
+    return {
+      level: 'critical',
+      title: 'Stripe Webhook Error',
+      message: `Failed to process Stripe webhook event: ${eventType}`,
+      metadata: {
+        eventType,
+        error,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  /**
+   * Helper pour créer une alerte d'erreur webhook Clerk
+   */
+  clerkWebhookErrorAlert(eventType: string, error: string): Alert {
+    return {
+      level: 'critical',
+      title: 'Clerk Webhook Error',
+      message: `Failed to process Clerk webhook event: ${eventType}`,
+      metadata: {
+        eventType,
+        error,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  /**
+   * Helper pour créer une alerte de souscription annulée
+   */
+  subscriptionCancelledAlert(organizationId: string, organizationName?: string): Alert {
+    return {
+      level: 'info',
+      title: 'Subscription Cancelled',
+      message: `An organization has cancelled their subscription.`,
+      metadata: {
+        organizationId,
+        organizationName,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  /**
+   * Helper pour créer une alerte d'erreur cron job
+   */
+  cronJobErrorAlert(jobName: string, error: string): Alert {
+    return {
+      level: 'critical',
+      title: 'Cron Job Failed',
+      message: `The scheduled job "${jobName}" has failed.`,
+      metadata: {
+        jobName,
+        error,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
 }
 
 // Export singleton instance

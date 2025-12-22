@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@ascendos/database";
+import { loggers, logError, logSecurityEvent, logBusinessEvent } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     const cronSecret = process.env.CRON_SECRET;
 
     if (!cronSecret) {
-      console.error("[Weekly Reminders] CRON_SECRET is not configured - endpoint disabled for security");
+      loggers.cron.error("CRON_SECRET is not configured - endpoint disabled for security");
       return NextResponse.json(
         { error: "Server configuration error: CRON_SECRET required" },
         { status: 500 }
@@ -27,20 +28,18 @@ export async function GET(request: NextRequest) {
     }
 
     if (authHeader !== `Bearer ${cronSecret}`) {
-      console.error("[Weekly Reminders] Unauthorized cron request - invalid or missing authorization header");
+      logSecurityEvent("unauthorized_cron_access", { endpoint: "weekly-reminders" });
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log("[Weekly Reminders] Starting weekly reminder job...");
+    loggers.cron.info("Starting weekly reminder job");
 
     // Get current day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
     const now = new Date();
     const currentDay = now.getDay();
     const currentHour = now.getUTCHours();
 
-    console.log(
-      `[Weekly Reminders] Current day: ${currentDay}, hour: ${currentHour}`
-    );
+    loggers.cron.debug({ currentDay, currentHour }, "Current time check");
 
     // Find organizations that have reminders enabled for this day/hour
     const organizations = await db.organization.findMany({
@@ -55,9 +54,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    console.log(
-      `[Weekly Reminders] Found ${organizations.length} organizations with paid plans`
-    );
+    loggers.cron.info({ count: organizations.length }, "Found organizations with paid plans");
 
     const results = {
       total: organizations.length,
@@ -122,26 +119,25 @@ export async function GET(request: NextRequest) {
 
         results.sent++;
 
-        console.log(
-          `[Weekly Reminders] Sent reminder to ${org.name} (${owners.length} recipients)`
-        );
+        logBusinessEvent("weekly_reminder_sent", {
+          organizationId: org.id,
+          organizationName: org.name,
+          recipientCount: owners.length,
+        });
       } catch (error) {
-        console.error(
-          `[Weekly Reminders] Error sending reminder to org ${org.id}:`,
-          error
-        );
+        logError(error, { context: "weekly-reminders", organizationId: org.id });
         results.errors++;
       }
     }
 
-    console.log("[Weekly Reminders] Job completed:", results);
+    loggers.cron.info(results, "Weekly reminder job completed");
 
     return NextResponse.json({
       success: true,
       results,
     });
   } catch (error) {
-    console.error("[Weekly Reminders] Fatal error:", error);
+    logError(error, { context: "weekly-reminders", fatal: true });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -168,9 +164,7 @@ async function sendReminderEmail({
   const resendApiKey = process.env.RESEND_API_KEY;
 
   if (!resendApiKey) {
-    console.warn(
-      "[Weekly Reminders] RESEND_API_KEY not configured, skipping email"
-    );
+    loggers.cron.warn("RESEND_API_KEY not configured, skipping email");
     return;
   }
 
@@ -296,9 +290,9 @@ async function sendReminderEmail({
     }
 
     const data = await response.json();
-    console.log(`[Weekly Reminders] Email sent to ${to}:`, data.id);
+    loggers.cron.debug({ to, emailId: data.id }, "Reminder email sent");
   } catch (error) {
-    console.error(`[Weekly Reminders] Failed to send email to ${to}:`, error);
+    logError(error, { context: "weekly-reminders", action: "send_email", to });
     throw error;
   }
 }

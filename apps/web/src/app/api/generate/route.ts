@@ -6,6 +6,7 @@ import { getMasterProfile, getSituationTemplate } from '@ascendos/templates';
 import { generatedUpdateOutputSchema } from '@ascendos/validators';
 import { auth } from '@clerk/nextjs/server';
 import { db, rateLimiter, alertSystem } from '@ascendos/database';
+import { loggers, logError, logSecurityEvent, logBusinessEvent } from '@/lib/logger';
 
 // Prisma requires Node.js runtime (incompatible with edge)
 export const runtime = 'nodejs';
@@ -84,7 +85,11 @@ export async function POST(req: NextRequest) {
             || 'unknown';
 
           // Logger et envoyer une alerte
-          console.warn(`[SECURITY] Blocked request from invalid origin/referer: ${origin || referer || 'none'}`);
+          logSecurityEvent('invalid_origin', {
+            origin: origin || 'none',
+            referer: referer || 'none',
+            ip,
+          });
           await alertSystem.send(
             alertSystem.unauthorizedAccessAlert(
               ip,
@@ -211,7 +216,11 @@ export async function POST(req: NextRequest) {
       }
 
       // Log pour monitoring (sans données sensibles)
-      console.log(`[ANONYMOUS] Generation request from IP: ${ip.substring(0, 10)}... | Remaining: ${rateLimitResult.remaining}`);
+      loggers.ai.info({
+        type: 'anonymous_generation',
+        ipPrefix: ip.substring(0, 10),
+        remaining: rateLimitResult.remaining,
+      }, 'Anonymous generation request');
     }
 
     // Rate limiting pour utilisateurs authentifiés
@@ -354,7 +363,7 @@ export async function POST(req: NextRequest) {
       const jsonText = jsonMatch ? jsonMatch[1] : text;
       output = JSON.parse(jsonText);
     } catch (parseError) {
-      console.error('Failed to parse LLM output:', text);
+      loggers.ai.error({ rawOutput: text.substring(0, 200) }, 'Failed to parse LLM output');
       return NextResponse.json(
         {
           error: 'Invalid JSON response from AI',
@@ -367,6 +376,14 @@ export async function POST(req: NextRequest) {
     // Validate output with Zod
     const validatedOutput = generatedUpdateOutputSchema.parse(output);
 
+    // Log successful generation
+    logBusinessEvent('generation_completed', {
+      authenticated: !!userId,
+      tokensUsed: usage?.totalTokens || 0,
+      generationTimeMs,
+      model: 'gpt-5-mini-2025-08-07',
+    });
+
     // Return response
     return NextResponse.json({
       ...validatedOutput,
@@ -378,7 +395,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in /api/generate:', error);
+    logError(error, { endpoint: '/api/generate' });
 
     if (error instanceof Error) {
       return NextResponse.json(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@ascendos/database";
 import { subDays } from "date-fns";
+import { loggers, logError, logSecurityEvent } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes for large purges
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     const cronSecret = process.env.CRON_SECRET;
 
     if (!cronSecret) {
-      console.error("[Data Purge] CRON_SECRET is not configured - endpoint disabled for security");
+      loggers.cron.error("CRON_SECRET is not configured - endpoint disabled for security");
       return NextResponse.json(
         { error: "Server configuration error: CRON_SECRET required" },
         { status: 500 }
@@ -27,11 +28,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (authHeader !== `Bearer ${cronSecret}`) {
-      console.error("[Data Purge] Unauthorized cron request - invalid or missing authorization header");
+      logSecurityEvent("unauthorized_cron_access", { endpoint: "data-purge" });
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log("[Data Purge] Starting data purge job...");
+    loggers.cron.info("Starting data purge job");
 
     const now = new Date();
     const results = {
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    console.log(`[Data Purge] Found ${organizations.length} organizations`);
+    loggers.cron.info({ count: organizations.length }, "Found organizations to process");
 
     for (const org of organizations) {
       try {
@@ -62,9 +63,7 @@ export async function GET(request: NextRequest) {
         const retentionDays = settings.dataRetentionDays;
         const cutoffDate = subDays(now, retentionDays);
 
-        console.log(
-          `[Data Purge] Processing org ${org.id} (retention: ${retentionDays} days, cutoff: ${cutoffDate.toISOString()})`
-        );
+        loggers.cron.debug({ organizationId: org.id, retentionDays, cutoffDate: cutoffDate.toISOString() }, "Processing organization");
 
         // Get all projects for this organization
         const projects = await db.project.findMany({
@@ -123,23 +122,27 @@ export async function GET(request: NextRequest) {
 
         results.organizationsProcessed++;
 
-        console.log(
-          `[Data Purge] Org ${org.id}: ${deletedUpdates.count} updates, ${deletedDecisions.count} decisions, ${deletedRisks.count} risks, ${deletedLogs.count} logs deleted`
-        );
+        loggers.cron.info({
+          organizationId: org.id,
+          updatesDeleted: deletedUpdates.count,
+          decisionsDeleted: deletedDecisions.count,
+          risksDeleted: deletedRisks.count,
+          logsDeleted: deletedLogs.count,
+        }, "Organization purge completed");
       } catch (error) {
-        console.error(`[Data Purge] Error processing org ${org.id}:`, error);
+        logError(error, { context: "data-purge", organizationId: org.id });
         results.errors++;
       }
     }
 
-    console.log("[Data Purge] Job completed:", results);
+    loggers.cron.info(results, "Data purge job completed");
 
     return NextResponse.json({
       success: true,
       results,
     });
   } catch (error) {
-    console.error("[Data Purge] Fatal error:", error);
+    logError(error, { context: "data-purge", fatal: true });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
