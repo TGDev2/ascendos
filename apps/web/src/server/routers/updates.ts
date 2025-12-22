@@ -274,6 +274,20 @@ export const updatesRouter = createTRPCRouter({
   markAsCopied: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      // Verify ownership before updating
+      const update = await ctx.db.update.findUnique({
+        where: { id: input.id },
+        include: { project: { select: { organizationId: true } } },
+      });
+
+      if (!update) {
+        throw new Error("Update not found");
+      }
+
+      if (update.project.organizationId !== ctx.orgId) {
+        throw new Error("Unauthorized");
+      }
+
       return ctx.db.update.update({
         where: { id: input.id },
         data: { wasCopied: true },
@@ -283,6 +297,20 @@ export const updatesRouter = createTRPCRouter({
   markAsSent: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      // Verify ownership before updating
+      const update = await ctx.db.update.findUnique({
+        where: { id: input.id },
+        include: { project: { select: { organizationId: true } } },
+      });
+
+      if (!update) {
+        throw new Error("Update not found");
+      }
+
+      if (update.project.organizationId !== ctx.orgId) {
+        throw new Error("Unauthorized");
+      }
+
       return ctx.db.update.update({
         where: { id: input.id },
         data: {

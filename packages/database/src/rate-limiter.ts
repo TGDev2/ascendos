@@ -18,7 +18,7 @@ export interface UsageResult {
  * Rate Limiter Service avec Upstash Redis
  *
  * Limites:
- * - ANONYMOUS: 3 générations/heure/IP (protection anti-abuse)
+ * - ANONYMOUS: 1 génération/heure/IP (protection anti-abuse renforcée)
  * - TRIAL: 5 générations totales (pour toute l'organisation, pendant le trial)
  * - TEAM: 10 générations/jour/utilisateur
  * - AGENCY: 50 générations/jour/utilisateur
@@ -112,7 +112,7 @@ export class RateLimiter {
 
   /**
    * Vérifie et incrémente le rate limit pour les requêtes anonymes (par IP)
-   * Limite: 3 requêtes par heure par IP
+   * Limite: 1 requête par heure par IP (réduction pour limiter l'abus des coûts LLM)
    */
   async checkAnonymousRequest(ip: string): Promise<RateLimitResult> {
     try {
@@ -124,13 +124,13 @@ export class RateLimiter {
         console.warn('⚠️  Unable to determine IP for anonymous request');
         return {
           allowed: false,
-          limit: 3,
+          limit: 1,
           remaining: 0,
         };
       }
 
       const key = `rate_limit:anonymous:${normalizedIp}:${this.getHourKey()}`;
-      const limit = 3; // 3 requêtes par heure
+      const limit = 1; // 1 requête par heure (réduction anti-abuse)
       const ttl = 3600; // 1 heure en secondes
 
       // Incrémenter le compteur atomiquement
@@ -161,7 +161,7 @@ export class RateLimiter {
       console.error('❌ Rate limiter error for anonymous request:', error);
       return {
         allowed: false,
-        limit: 3,
+        limit: 1,
         remaining: 0,
       };
     }
