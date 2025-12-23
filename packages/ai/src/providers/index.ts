@@ -9,7 +9,7 @@ export function getModel(provider: LLMProvider = 'openai', modelName?: string): 
     case 'anthropic':
       return anthropic(modelName || 'claude-3-5-sonnet-20241022');
     case 'openai':
-      return openai(modelName || 'gpt-5-mini-2025-08-07');
+      return openai(modelName || 'gpt-4o-mini');
     default:
       throw new Error(`Unknown provider: ${provider}`);
   }
@@ -21,7 +21,7 @@ export function getParsingModel(provider: LLMProvider = 'openai'): LanguageModel
     case 'anthropic':
       return anthropic('claude-3-5-haiku-20241022');
     case 'openai':
-      return openai('gpt-5-mini-2025-08-07');
+      return openai('gpt-4o-mini');
     default:
       throw new Error(`Unknown provider: ${provider}`);
   }

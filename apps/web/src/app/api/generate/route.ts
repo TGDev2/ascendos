@@ -320,13 +320,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate with OpenAI (gpt-5-mini-2025-08-07)
+    // Generate with OpenAI (gpt-4o-mini)
     // Réduction drastique de maxTokens pour les utilisateurs anonymes (75% de réduction)
     const maxTokens = userId ? 2000 : 500;
 
     const startTime = Date.now();
     const { text, usage } = await generateText({
-      model: getModel('openai', 'gpt-5-mini-2025-08-07'),
+      model: getModel('openai', 'gpt-4o-mini'),
       system,
       prompt: user,
       temperature: 0.7,
@@ -349,7 +349,7 @@ export async function POST(req: NextRequest) {
             userId: user.id,
             action: 'generate_update',
             tokensUsed: usage?.totalTokens || 0,
-            modelUsed: 'gpt-5-mini-2025-08-07',
+            modelUsed: 'gpt-4o-mini',
           },
         });
       }
@@ -381,14 +381,14 @@ export async function POST(req: NextRequest) {
       authenticated: !!userId,
       tokensUsed: usage?.totalTokens || 0,
       generationTimeMs,
-      model: 'gpt-5-mini-2025-08-07',
+      model: 'gpt-4o-mini',
     });
 
     // Return response
     return NextResponse.json({
       ...validatedOutput,
       metadata: {
-        generatedWith: 'gpt-5-mini-2025-08-07',
+        generatedWith: 'gpt-4o-mini',
         tokensUsed: usage?.totalTokens || 0,
         generationTimeMs,
       },

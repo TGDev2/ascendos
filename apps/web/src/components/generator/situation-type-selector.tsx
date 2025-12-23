@@ -1,51 +1,83 @@
 "use client";
 
 import { getAllSituationTemplates, SituationType } from "@ascendos/templates";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import {
+  Calendar,
+  CheckSquare,
+  AlertTriangle,
+  Clock,
+  Scale,
+  BarChart3,
+} from "lucide-react";
 
 interface SituationTypeSelectorProps {
   value?: SituationType;
   onValueChange: (value: SituationType) => void;
 }
 
-export function SituationTypeSelector({ value, onValueChange }: SituationTypeSelectorProps) {
+const situationIcons: Record<SituationType, React.ReactNode> = {
+  [SituationType.NORMAL]: <Calendar className="h-4 w-4" />,
+  [SituationType.VALIDATION]: <CheckSquare className="h-4 w-4" />,
+  [SituationType.RISK]: <AlertTriangle className="h-4 w-4" />,
+  [SituationType.DELAY]: <Clock className="h-4 w-4" />,
+  [SituationType.ARBITRAGE]: <Scale className="h-4 w-4" />,
+  [SituationType.PRE_COPIL]: <BarChart3 className="h-4 w-4" />,
+};
+
+export function SituationTypeSelector({
+  value,
+  onValueChange,
+}: SituationTypeSelectorProps) {
   const situations = getAllSituationTemplates();
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-lg font-medium">Type de situation</h3>
-        <p className="text-sm text-muted-foreground">
-          Sélectionnez le contexte de cette semaine
-        </p>
-      </div>
-
-      <RadioGroup
-        value={value}
-        onValueChange={(v) => onValueChange(v as SituationType)}
-        className="grid gap-3"
-      >
-        {situations.map((situation) => (
-          <div
-            key={situation.type}
-            className="flex items-start space-x-3 space-y-0 rounded-md border p-4 hover:bg-accent"
-          >
-            <RadioGroupItem value={situation.type} id={situation.type} />
-            <div className="flex-1 space-y-1">
-              <Label
-                htmlFor={situation.type}
-                className="cursor-pointer font-medium leading-none"
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Type de situation</CardTitle>
+        <CardDescription className="text-xs">
+          Contexte de cette semaine
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-2">
+          {situations.map((situation) => (
+            <button
+              key={situation.type}
+              type="button"
+              className={cn(
+                "flex items-center gap-2 rounded-lg border p-3 text-left transition-all hover:bg-accent",
+                value === situation.type &&
+                  "border-primary bg-primary/5 ring-1 ring-primary"
+              )}
+              onClick={() => onValueChange(situation.type)}
+            >
+              <div
+                className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+                  value === situation.type
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                )}
               >
-                {situation.name}
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                {situation.description}
-              </p>
-            </div>
-          </div>
-        ))}
-      </RadioGroup>
-    </div>
+                {situationIcons[situation.type]}
+              </div>
+              <div className="min-w-0">
+                <span className="block truncate text-sm font-medium">
+                  {situation.name}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

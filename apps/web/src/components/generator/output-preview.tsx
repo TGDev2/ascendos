@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Copy } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Check, Copy, Mail, MessageSquare, Loader2, AlertCircle } from "lucide-react";
 
 interface OutputPreviewProps {
   emailSubject?: string;
@@ -23,26 +24,24 @@ export function OutputPreview({
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedSlack, setCopiedSlack] = useState(false);
 
-  const copyToClipboard = async (text: string, type: 'email' | 'slack') => {
+  const copyToClipboard = async (text: string, type: "email" | "slack") => {
     try {
-      // Check if clipboard API is available
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
       } else {
-        // Fallback for older browsers or insecure contexts
-        const textArea = document.createElement('textarea');
+        const textArea = document.createElement("textarea");
         textArea.value = text;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
-        document.execCommand('copy');
+        document.execCommand("copy");
         textArea.remove();
       }
 
-      if (type === 'email') {
+      if (type === "email") {
         setCopiedEmail(true);
         setTimeout(() => setCopiedEmail(false), 2000);
       } else {
@@ -50,10 +49,8 @@ export function OutputPreview({
         setTimeout(() => setCopiedSlack(false), 2000);
       }
     } catch (err) {
-      console.error('Failed to copy text:', err);
-      // Still show the success state even if copy fails
-      // The user can manually copy if needed
-      if (type === 'email') {
+      console.error("Failed to copy text:", err);
+      if (type === "email") {
         setCopiedEmail(true);
         setTimeout(() => setCopiedEmail(false), 2000);
       } else {
@@ -63,116 +60,158 @@ export function OutputPreview({
     }
   };
 
+  const hasOutput = emailBody || slackMessage;
+
+  // État de chargement
+  if (isLoading) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="mt-4 text-sm font-medium">Génération en cours...</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Cela prend généralement moins de 30 secondes
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // État d'erreur
+  if (error) {
+    return (
+      <Card className="border-destructive/50 bg-destructive/5">
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+            <AlertCircle className="h-6 w-6 text-destructive" />
+          </div>
+          <p className="mt-4 text-sm font-medium text-destructive">
+            Une erreur est survenue
+          </p>
+          <p className="mt-1 max-w-md text-center text-xs text-muted-foreground">
+            {error}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // État vide
+  if (!hasOutput) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+            <Mail className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <p className="mt-4 text-sm font-medium">Votre update apparaîtra ici</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Remplissez le formulaire ci-dessus et cliquez sur "Générer"
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // État avec résultat
   return (
-    <div className="space-y-6 lg:sticky lg:top-8 lg:self-start">
-      {/* Email Preview */}
-      <Card>
-        <CardHeader>
+    <Card>
+      <Tabs defaultValue="email" className="w-full">
+        <CardHeader className="pb-0">
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Preview Email</CardTitle>
-              <CardDescription>
-                {isLoading ? "Génération en cours..." : "Update prêt à envoyer"}
-              </CardDescription>
-            </div>
-            {emailBody && !isLoading && (
+            <TabsList className="grid w-full max-w-[300px] grid-cols-2">
+              <TabsTrigger value="email" className="gap-2">
+                <Mail className="h-4 w-4" />
+                Email
+              </TabsTrigger>
+              <TabsTrigger value="slack" className="gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Slack
+              </TabsTrigger>
+            </TabsList>
+          </div>
+        </CardHeader>
+
+        <CardContent className="pt-4">
+          <TabsContent value="email" className="mt-0 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Prêt à copier-coller dans votre client email
+              </p>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => copyToClipboard(`Objet: ${emailSubject}\n\n${emailBody}`, 'email')}
+                onClick={() =>
+                  copyToClipboard(
+                    `Objet: ${emailSubject}\n\n${emailBody}`,
+                    "email"
+                  )
+                }
+                className="gap-2"
               >
                 {copiedEmail ? (
                   <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Copié!
+                    <Check className="h-4 w-4 text-green-500" />
+                    Copié !
                   </>
                 ) : (
                   <>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copier
+                    <Copy className="h-4 w-4" />
+                    Copier tout
                   </>
                 )}
               </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
-          ) : error ? (
-            <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">
-              {error}
-            </div>
-          ) : emailBody ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">Objet</div>
-                <div className="rounded-md bg-muted p-3 text-sm font-medium">
+                <div className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  OBJET
+                </div>
+                <div className="rounded-lg border bg-muted/50 p-3 text-sm font-medium">
                   {emailSubject}
                 </div>
               </div>
               <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">Corps de l'email</div>
-                <div className="rounded-md bg-muted p-4 text-sm whitespace-pre-wrap">
+                <div className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  CORPS DU MESSAGE
+                </div>
+                <div className="max-h-[400px] overflow-y-auto rounded-lg border bg-muted/50 p-4 text-sm leading-relaxed whitespace-pre-wrap">
                   {emailBody}
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              Remplissez le formulaire et cliquez sur "Générer" pour voir le résultat...
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </TabsContent>
 
-      {/* Slack Preview */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Preview Slack</CardTitle>
-              <CardDescription>Version courte pour Slack</CardDescription>
-            </div>
-            {slackMessage && !isLoading && (
+          <TabsContent value="slack" className="mt-0 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Version courte optimisée pour Slack
+              </p>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => copyToClipboard(slackMessage, 'slack')}
+                onClick={() => copyToClipboard(slackMessage || "", "slack")}
+                className="gap-2"
               >
                 {copiedSlack ? (
                   <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Copié!
+                    <Check className="h-4 w-4 text-green-500" />
+                    Copié !
                   </>
                 ) : (
                   <>
-                    <Copy className="h-4 w-4 mr-2" />
+                    <Copy className="h-4 w-4" />
                     Copier
                   </>
                 )}
               </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
-          ) : slackMessage ? (
-            <div className="rounded-md bg-muted p-4 text-sm whitespace-pre-wrap">
+            <div className="max-h-[400px] overflow-y-auto rounded-lg border bg-muted/50 p-4 text-sm leading-relaxed whitespace-pre-wrap">
               {slackMessage}
             </div>
-          ) : (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              Remplissez le formulaire et cliquez sur "Générer" pour voir le résultat...
-            </div>
-          )}
+          </TabsContent>
         </CardContent>
-      </Card>
-    </div>
+      </Tabs>
+    </Card>
   );
 }
