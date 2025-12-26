@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { startOfDay, startOfWeek, startOfMonth, subDays } from "date-fns";
+import {
+  createCheckoutSession,
+  createPortalSession,
+} from "@/lib/stripe/helpers";
+import { type StripePlanType } from "@/lib/stripe/client";
 
 /**
  * Router tRPC pour la gestion de la facturation et des abonnements
@@ -58,7 +63,7 @@ export const billingRouter = createTRPCRouter({
       z.object({
         period: z.enum(["day", "week", "month"]),
         userId: z.string().optional(), // Optionnel: filtrer par user
-      })
+      }),
     )
     .query(async ({ ctx, input }) => {
       // Calculer la date de début en fonction de la période
@@ -88,15 +93,18 @@ export const billingRouter = createTRPCRouter({
       });
 
       // Grouper par jour pour les stats
-      const byDay = logs.reduce((acc, log) => {
-        const day = log.createdAt.toISOString().split("T")[0]!;
-        if (!acc[day]) {
-          acc[day] = { count: 0, tokens: 0 };
-        }
-        acc[day]!.count++;
-        acc[day]!.tokens += log.tokensUsed || 0;
-        return acc;
-      }, {} as Record<string, { count: number; tokens: number }>);
+      const byDay = logs.reduce(
+        (acc, log) => {
+          const day = log.createdAt.toISOString().split("T")[0]!;
+          if (!acc[day]) {
+            acc[day] = { count: 0, tokens: 0 };
+          }
+          acc[day]!.count++;
+          acc[day]!.tokens += log.tokensUsed || 0;
+          return acc;
+        },
+        {} as Record<string, { count: number; tokens: number }>,
+      );
 
       return {
         logs,
@@ -123,14 +131,17 @@ export const billingRouter = createTRPCRouter({
     });
 
     // Grouper par jour
-    const byDay = logs.reduce((acc, log) => {
-      const day = log.createdAt.toISOString().split("T")[0]!;
-      if (!acc[day]) {
-        acc[day] = 0;
-      }
-      acc[day]++;
-      return acc;
-    }, {} as Record<string, number>);
+    const byDay = logs.reduce(
+      (acc, log) => {
+        const day = log.createdAt.toISOString().split("T")[0]!;
+        if (!acc[day]) {
+          acc[day] = 0;
+        }
+        acc[day]++;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     // Convertir en array pour le graph
     const chartData = Object.entries(byDay).map(([date, count]) => ({
@@ -143,69 +154,83 @@ export const billingRouter = createTRPCRouter({
 
   /**
    * Crée une session de checkout Stripe
-   * Redirige vers /api/billing/checkout
    */
   createCheckoutSession: protectedProcedure
     .input(
       z.object({
         plan: z.enum(["TEAM", "AGENCY"]),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Vérifier que l'utilisateur a les droits
+      // Récupérer l'utilisateur avec son organisation
       const user = await ctx.db.user.findUnique({
         where: { clerkId: ctx.userId },
+        include: { organization: true },
       });
 
       if (!user || (user.role !== "OWNER" && user.role !== "ADMIN")) {
-        throw new Error("Only organization owners and admins can manage billing");
+        throw new Error(
+          "Only organization owners and admins can manage billing",
+        );
       }
 
-      // Appeler l'API route de checkout
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      const response = await fetch(`${baseUrl}/api/billing/checkout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ plan: input.plan }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to create checkout session");
+      if (!user.organization) {
+        throw new Error("Organization not found");
       }
 
-      const data = await response.json();
-      return data;
+      // Vérifier que l'organisation est en TRIAL
+      if (user.organization.plan !== "TRIAL") {
+        throw new Error(
+          `Organization is already on ${user.organization.plan} plan`,
+        );
+      }
+
+      // Créer la session de checkout Stripe directement
+      const session = await createCheckoutSession(
+        user.organization.id,
+        input.plan as StripePlanType,
+        user.email,
+        user.organization.name,
+      );
+
+      return {
+        sessionId: session.id,
+        url: session.url,
+      };
     }),
 
   /**
    * Récupère l'URL du portail Stripe
-   * Redirige vers /api/billing/portal
    */
   getPortalUrl: protectedProcedure.mutation(async ({ ctx }) => {
-    // Vérifier que l'utilisateur a les droits
+    // Récupérer l'utilisateur avec son organisation
     const user = await ctx.db.user.findUnique({
       where: { clerkId: ctx.userId },
+      include: { organization: true },
     });
 
     if (!user || (user.role !== "OWNER" && user.role !== "ADMIN")) {
       throw new Error("Only organization owners and admins can manage billing");
     }
 
-    // Appeler l'API route du portail
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const response = await fetch(`${baseUrl}/api/billing/portal`, {
-      method: "POST",
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Failed to create portal session");
+    if (!user.organization) {
+      throw new Error("Organization not found");
     }
 
-    const data = await response.json();
-    return data;
+    // Vérifier que l'organisation a un customer Stripe
+    if (!user.organization.stripeCustomerId) {
+      throw new Error(
+        "Organization does not have a Stripe customer. Please subscribe first.",
+      );
+    }
+
+    // Créer la session de portail Stripe directement
+    const session = await createPortalSession(
+      user.organization.stripeCustomerId,
+    );
+
+    return {
+      url: session.url,
+    };
   }),
 });
