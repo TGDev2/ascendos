@@ -36,13 +36,13 @@ export async function POST(req: NextRequest) {
     event = stripe.webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET
+      process.env.STRIPE_WEBHOOK_SECRET,
     );
   } catch (err) {
     logError(err, { context: "Webhook signature verification" });
     return new Response(
       `Webhook Error: ${err instanceof Error ? err.message : "Unknown error"}`,
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -50,15 +50,21 @@ export async function POST(req: NextRequest) {
     // Gérer les différents types d'événements
     switch (event.type) {
       case "checkout.session.completed":
-        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+        await handleCheckoutCompleted(
+          event.data.object as Stripe.Checkout.Session,
+        );
         break;
 
       case "customer.subscription.updated":
-        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+        await handleSubscriptionUpdated(
+          event.data.object as Stripe.Subscription,
+        );
         break;
 
       case "customer.subscription.deleted":
-        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+        await handleSubscriptionDeleted(
+          event.data.object as Stripe.Subscription,
+        );
         break;
 
       case "invoice.payment_failed":
@@ -66,24 +72,30 @@ export async function POST(req: NextRequest) {
         break;
 
       default:
-        loggers.webhook.debug({ eventType: event.type }, "Unhandled Stripe event type");
+        loggers.webhook.debug(
+          { eventType: event.type },
+          "Unhandled Stripe event type",
+        );
     }
 
     return new Response("Webhook processed successfully", { status: 200 });
   } catch (error) {
-    logError(error, { context: "Stripe webhook processing", eventType: event.type });
+    logError(error, {
+      context: "Stripe webhook processing",
+      eventType: event.type,
+    });
 
     // Send alert for webhook processing failures
     await alertSystem.send(
       alertSystem.stripeWebhookErrorAlert(
         event.type,
-        error instanceof Error ? error.message : "Unknown error"
-      )
+        error instanceof Error ? error.message : "Unknown error",
+      ),
     );
 
     return new Response(
       `Webhook handler failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -97,7 +109,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const plan = session.metadata?.plan as Plan | undefined;
 
   if (!organizationId || !plan) {
-    loggers.webhook.error({ sessionId: session.id }, "Missing metadata in checkout session");
+    loggers.webhook.error(
+      { sessionId: session.id },
+      "Missing metadata in checkout session",
+    );
     return;
   }
 
@@ -108,6 +123,16 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   // Récupérer les détails de la subscription
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+  // Définir les limites en fonction du plan
+  const planLimits =
+    plan === "AGENCY"
+      ? { maxProjects: -1, maxDecisionsPerProject: -1, maxRisksPerProject: -1 }
+      : {
+          maxProjects: 10,
+          maxDecisionsPerProject: 100,
+          maxRisksPerProject: 100,
+        }; // TEAM
 
   // Mettre à jour l'organisation
   await db.organization.update({
@@ -122,6 +147,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       // Reset le trial
       trialEndsAt: null,
       trialGenerations: 0,
+      // Appliquer les limites du plan
+      ...planLimits,
     },
   });
 
@@ -139,11 +166,17 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   const organizationId = subscription.metadata?.organizationId;
 
   if (!organizationId) {
-    loggers.webhook.error({ subscriptionId: subscription.id }, "Missing organizationId in subscription metadata");
+    loggers.webhook.error(
+      { subscriptionId: subscription.id },
+      "Missing organizationId in subscription metadata",
+    );
     return;
   }
 
-  loggers.billing.info({ organizationId, subscriptionId: subscription.id }, "Subscription updated");
+  loggers.billing.info(
+    { organizationId, subscriptionId: subscription.id },
+    "Subscription updated",
+  );
 
   // Déterminer le nouveau plan
   const priceId = subscription.items.data[0]?.price.id;
@@ -177,11 +210,17 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const organizationId = subscription.metadata?.organizationId;
 
   if (!organizationId) {
-    loggers.webhook.error({ subscriptionId: subscription.id }, "Missing organizationId in subscription metadata");
+    loggers.webhook.error(
+      { subscriptionId: subscription.id },
+      "Missing organizationId in subscription metadata",
+    );
     return;
   }
 
-  loggers.billing.warn({ organizationId, subscriptionId: subscription.id }, "Subscription deleted");
+  loggers.billing.warn(
+    { organizationId, subscriptionId: subscription.id },
+    "Subscription deleted",
+  );
 
   // Downgrade l'organisation vers TRIAL avec trial expiré
   await db.organization.update({
@@ -209,7 +248,10 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   const subscriptionId = invoice.subscription as string | null;
 
   if (!subscriptionId) {
-    loggers.webhook.error({ invoiceId: invoice.id }, "No subscription ID in failed invoice");
+    loggers.webhook.error(
+      { invoiceId: invoice.id },
+      "No subscription ID in failed invoice",
+    );
     return;
   }
 
@@ -218,11 +260,17 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   const organizationId = subscription.metadata?.organizationId;
 
   if (!organizationId) {
-    loggers.webhook.error({ subscriptionId }, "Missing organizationId in subscription metadata");
+    loggers.webhook.error(
+      { subscriptionId },
+      "Missing organizationId in subscription metadata",
+    );
     return;
   }
 
-  loggers.billing.warn({ organizationId, invoiceId: invoice.id }, "Payment failed");
+  loggers.billing.warn(
+    { organizationId, invoiceId: invoice.id },
+    "Payment failed",
+  );
 
   // Marquer l'organisation pour annulation à la fin de la période
   await db.organization.update({
@@ -234,8 +282,16 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
 
   // Send alert for payment failure
   await alertSystem.send(
-    alertSystem.paymentFailedAlert(organizationId, invoice.id, invoice.amount_due)
+    alertSystem.paymentFailedAlert(
+      organizationId,
+      invoice.id,
+      invoice.amount_due,
+    ),
   );
 
-  logBusinessEvent("payment_failed", { organizationId, invoiceId: invoice.id, willCancelAtPeriodEnd: true });
+  logBusinessEvent("payment_failed", {
+    organizationId,
+    invoiceId: invoice.id,
+    willCancelAtPeriodEnd: true,
+  });
 }

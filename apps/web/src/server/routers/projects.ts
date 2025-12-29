@@ -1,12 +1,18 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { TRPCError } from "@trpc/server";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  limitedProcedure,
+  isLimitReached,
+} from "../trpc";
 
 export const projectsRouter = createTRPCRouter({
   list: protectedProcedure
     .input(
       z.object({
         archived: z.boolean().optional(),
-      })
+      }),
     )
     .query(async ({ ctx, input }) => {
       return ctx.db.project.findMany({
@@ -71,7 +77,7 @@ export const projectsRouter = createTRPCRouter({
       return project;
     }),
 
-  create: protectedProcedure
+  create: limitedProcedure
     .input(
       z.object({
         name: z.string().min(1),
@@ -81,9 +87,26 @@ export const projectsRouter = createTRPCRouter({
         sponsorName: z.string().optional(),
         sponsorRole: z.string().optional(),
         sponsorEmail: z.string().email().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Vérifier le mode lecture seule (trial expiré)
+      if (ctx.limits.isReadOnly) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Votre période d'essai a expiré. Passez au plan TEAM pour continuer à créer des projets.",
+        });
+      }
+
+      // Vérifier la limite de projets
+      if (isLimitReached(ctx.limits.currentProjects, ctx.limits.maxProjects)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Limite de ${ctx.limits.maxProjects} projet(s) atteinte. Passez au plan supérieur pour créer plus de projets.`,
+        });
+      }
+
       return ctx.db.project.create({
         data: {
           ...input,
@@ -96,7 +119,7 @@ export const projectsRouter = createTRPCRouter({
       });
     }),
 
-  update: protectedProcedure
+  update: limitedProcedure
     .input(
       z.object({
         id: z.string(),
@@ -107,9 +130,18 @@ export const projectsRouter = createTRPCRouter({
         sponsorName: z.string().optional(),
         sponsorRole: z.string().optional(),
         sponsorEmail: z.string().email().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Vérifier le mode lecture seule
+      if (ctx.limits.isReadOnly) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Votre période d'essai a expiré. Passez au plan TEAM pour modifier vos projets.",
+        });
+      }
+
       const { id, ...data } = input;
 
       return ctx.db.project.update({
@@ -124,9 +156,18 @@ export const projectsRouter = createTRPCRouter({
       });
     }),
 
-  archive: protectedProcedure
+  archive: limitedProcedure
     .input(z.object({ id: z.string(), archived: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
+      // Vérifier le mode lecture seule
+      if (ctx.limits.isReadOnly) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Votre période d'essai a expiré. Passez au plan TEAM pour archiver vos projets.",
+        });
+      }
+
       return ctx.db.project.update({
         where: {
           id: input.id,
@@ -138,9 +179,18 @@ export const projectsRouter = createTRPCRouter({
       });
     }),
 
-  delete: protectedProcedure
+  delete: limitedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      // Vérifier le mode lecture seule
+      if (ctx.limits.isReadOnly) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Votre période d'essai a expiré. Passez au plan TEAM pour supprimer vos projets.",
+        });
+      }
+
       return ctx.db.project.delete({
         where: {
           id: input.id,

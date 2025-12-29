@@ -1,13 +1,33 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/react";
 import { usePaywall } from "@/hooks/use-paywall";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Check, CreditCard } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  CreditCard,
+  Loader2,
+  CheckCircle,
+} from "lucide-react";
+
 export default function BillingSettingsPage() {
-  const { data: org, isLoading } = trpc.billing.getStatus.useQuery();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [verifying, setVerifying] = useState(false);
+  const [verificationSuccess, setVerificationSuccess] = useState(false);
+
+  const { data: org, isLoading, refetch } = trpc.billing.getStatus.useQuery();
   const createCheckout = trpc.billing.createCheckoutSession.useMutation({
     onSuccess: (data) => {
       // Rediriger vers Stripe Checkout
@@ -25,7 +45,42 @@ export default function BillingSettingsPage() {
     },
   });
 
-  const { trialDaysRemaining, trialGenerations, plan, todayGenerations } = usePaywall();
+  const { trialDaysRemaining, trialGenerations, plan, todayGenerations } =
+    usePaywall();
+
+  // Vérification synchrone après retour de Stripe
+  useEffect(() => {
+    const sessionId = searchParams.get("session_id");
+    const success = searchParams.get("success");
+
+    if (success === "true" && sessionId && !verifying && !verificationSuccess) {
+      setVerifying(true);
+
+      fetch("/api/billing/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            setVerificationSuccess(true);
+            // Refresh les données après upgrade
+            refetch();
+            // Nettoyer l'URL après 2 secondes
+            setTimeout(() => {
+              router.replace("/settings/billing");
+            }, 2000);
+          }
+        })
+        .catch((err) => {
+          console.error("Verification error:", err);
+        })
+        .finally(() => {
+          setVerifying(false);
+        });
+    }
+  }, [searchParams, verifying, verificationSuccess, refetch, router]);
 
   if (isLoading) {
     return (
@@ -40,6 +95,34 @@ export default function BillingSettingsPage() {
     );
   }
 
+  if (verifying) {
+    return (
+      <div className="container max-w-6xl py-10">
+        <div className="flex flex-col items-center justify-center space-y-4 py-20">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <h2 className="text-2xl font-bold">Vérification du paiement...</h2>
+          <p className="text-muted-foreground">
+            Veuillez patienter pendant que nous confirmons votre abonnement.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (verificationSuccess) {
+    return (
+      <div className="container max-w-6xl py-10">
+        <div className="flex flex-col items-center justify-center space-y-4 py-20">
+          <CheckCircle className="h-16 w-16 text-green-500" />
+          <h2 className="text-2xl font-bold">Paiement confirmé !</h2>
+          <p className="text-muted-foreground">
+            Votre abonnement a été activé avec succès.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const isPaid = plan === "TEAM" || plan === "AGENCY";
 
   return (
@@ -48,7 +131,9 @@ export default function BillingSettingsPage() {
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold">Facturation</h1>
-          <p className="text-muted-foreground">Gérez votre abonnement et votre facturation</p>
+          <p className="text-muted-foreground">
+            Gérez votre abonnement et votre facturation
+          </p>
         </div>
 
         {/* Plan actuel */}
@@ -63,7 +148,10 @@ export default function BillingSettingsPage() {
                   {plan === "AGENCY" && "Abonnement Agency"}
                 </CardDescription>
               </div>
-              <Badge variant={plan === "TRIAL" ? "secondary" : "default"} className="text-lg px-4 py-1">
+              <Badge
+                variant={plan === "TRIAL" ? "secondary" : "default"}
+                className="text-lg px-4 py-1"
+              >
                 {plan}
               </Badge>
             </div>
@@ -84,7 +172,8 @@ export default function BillingSettingsPage() {
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Votre période d'essai se termine dans {trialDaysRemaining} jours. Upgradez pour continuer à utiliser Ascendos.
+                  Votre période d'essai se termine dans {trialDaysRemaining}{" "}
+                  jours. Upgradez pour continuer à utiliser Ascendos.
                 </p>
               </div>
             )}
@@ -95,13 +184,20 @@ export default function BillingSettingsPage() {
                   <div>
                     <p className="font-medium">Générations aujourd'hui</p>
                     <p className="text-sm text-muted-foreground">
-                      {plan === "TEAM" && `${todayGenerations} / 10 générations`}
-                      {plan === "AGENCY" && `${todayGenerations} / 50 générations`}
+                      {plan === "TEAM" &&
+                        `${todayGenerations} / 10 générations`}
+                      {plan === "AGENCY" &&
+                        `${todayGenerations} / 50 générations`}
                     </p>
                   </div>
                 </div>
 
-                <Button onClick={() => getPortal.mutate()} variant="outline" className="w-full" disabled={getPortal.isPending}>
+                <Button
+                  onClick={() => getPortal.mutate()}
+                  variant="outline"
+                  className="w-full"
+                  disabled={getPortal.isPending}
+                >
                   <CreditCard className="mr-2 h-4 w-4" />
                   Gérer mon abonnement
                 </Button>
@@ -109,7 +205,12 @@ export default function BillingSettingsPage() {
                 {org?.cancelAtPeriodEnd && (
                   <div className="p-4 border border-destructive rounded-lg bg-destructive/10">
                     <p className="text-sm font-medium text-destructive">
-                      Votre abonnement sera annulé le {org.stripeCurrentPeriodEnd ? new Date(org.stripeCurrentPeriodEnd).toLocaleDateString('fr-FR') : ''}
+                      Votre abonnement sera annulé le{" "}
+                      {org.stripeCurrentPeriodEnd
+                        ? new Date(
+                            org.stripeCurrentPeriodEnd,
+                          ).toLocaleDateString("fr-FR")
+                        : ""}
                     </p>
                   </div>
                 )}
@@ -138,8 +239,8 @@ export default function BillingSettingsPage() {
                     10 générations/jour/utilisateur
                   </li>
                   <li className="flex items-center">
-                    <Check className="mr-2 h-4 w-4 text-primary" />
-                    5 utilisateurs inclus
+                    <Check className="mr-2 h-4 w-4 text-primary" />5
+                    utilisateurs inclus
                   </li>
                   <li className="flex items-center">
                     <Check className="mr-2 h-4 w-4 text-primary" />
@@ -172,7 +273,9 @@ export default function BillingSettingsPage() {
               </div>
               <CardHeader>
                 <CardTitle>Agency</CardTitle>
-                <CardDescription>Pour les agences et grandes équipes</CardDescription>
+                <CardDescription>
+                  Pour les agences et grandes équipes
+                </CardDescription>
                 <div className="mt-4">
                   <span className="text-4xl font-bold">169€</span>
                   <span className="text-muted-foreground">/mois</span>

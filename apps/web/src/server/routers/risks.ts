@@ -1,10 +1,17 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { TRPCError } from "@trpc/server";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  limitedProcedure,
+  isLimitReached,
+} from "../trpc";
 import {
   createRiskSchema,
   updateRiskSchema,
   listRisksSchema,
 } from "@ascendos/validators";
+import type { Prisma } from "@ascendos/database";
 
 export const risksRouter = createTRPCRouter({
   list: protectedProcedure
@@ -23,7 +30,7 @@ export const risksRouter = createTRPCRouter({
       }
 
       // Build the where clause with filters
-      const where: any = {
+      const where: Prisma.RiskWhereInput = {
         projectId: input.projectId,
       };
 
@@ -90,19 +97,44 @@ export const risksRouter = createTRPCRouter({
       return risk;
     }),
 
-  create: protectedProcedure
+  create: limitedProcedure
     .input(createRiskSchema)
     .mutation(async ({ ctx, input }) => {
+      // Vérifier le mode lecture seule
+      if (ctx.limits.isReadOnly) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Votre période d'essai a expiré. Passez au plan TEAM pour créer des risques.",
+        });
+      }
+
       // Verify the project belongs to the organization
       const project = await ctx.db.project.findFirst({
         where: {
           id: input.projectId,
           organizationId: ctx.orgId,
         },
+        include: {
+          _count: {
+            select: { risks: true },
+          },
+        },
       });
 
       if (!project) {
-        throw new Error("Project not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
+      }
+
+      // Vérifier la limite de risques par projet
+      if (isLimitReached(project._count.risks, ctx.limits.maxRisksPerProject)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Limite de ${ctx.limits.maxRisksPerProject} risques par projet atteinte. Passez au plan supérieur.`,
+        });
       }
 
       return ctx.db.risk.create({
@@ -118,13 +150,24 @@ export const risksRouter = createTRPCRouter({
       });
     }),
 
-  update: protectedProcedure
+  update: limitedProcedure
     .input(
-      z.object({
-        id: z.string(),
-      }).merge(updateRiskSchema)
+      z
+        .object({
+          id: z.string(),
+        })
+        .merge(updateRiskSchema),
     )
     .mutation(async ({ ctx, input }) => {
+      // Vérifier le mode lecture seule
+      if (ctx.limits.isReadOnly) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Votre période d'essai a expiré. Passez au plan TEAM pour modifier des risques.",
+        });
+      }
+
       const { id, ...data } = input;
 
       // First fetch the risk to verify ownership
@@ -140,11 +183,11 @@ export const risksRouter = createTRPCRouter({
       });
 
       if (!risk) {
-        throw new Error("Risk not found");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Risk not found" });
       }
 
       if (risk.project.organizationId !== ctx.orgId) {
-        throw new Error("Unauthorized");
+        throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
       }
 
       // Auto-set resolvedAt when status changes to RESOLVED
@@ -167,9 +210,18 @@ export const risksRouter = createTRPCRouter({
       });
     }),
 
-  delete: protectedProcedure
+  delete: limitedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      // Vérifier le mode lecture seule
+      if (ctx.limits.isReadOnly) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Votre période d'essai a expiré. Passez au plan TEAM pour supprimer des risques.",
+        });
+      }
+
       // First fetch the risk to verify ownership
       const risk = await ctx.db.risk.findUnique({
         where: { id: input.id },
@@ -183,11 +235,11 @@ export const risksRouter = createTRPCRouter({
       });
 
       if (!risk) {
-        throw new Error("Risk not found");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Risk not found" });
       }
 
       if (risk.project.organizationId !== ctx.orgId) {
-        throw new Error("Unauthorized");
+        throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
       }
 
       return ctx.db.risk.delete({

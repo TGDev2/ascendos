@@ -8,7 +8,7 @@ import { db, type Plan } from "@ascendos/database";
 export async function getOrCreateStripeCustomer(
   organizationId: string,
   email: string,
-  name: string
+  name: string,
 ): Promise<string> {
   const org = await db.organization.findUnique({
     where: { id: organizationId },
@@ -45,12 +45,12 @@ export async function createCheckoutSession(
   organizationId: string,
   plan: StripePlanType,
   customerEmail: string,
-  organizationName: string
+  organizationName: string,
 ): Promise<Stripe.Checkout.Session> {
   const customerId = await getOrCreateStripeCustomer(
     organizationId,
     customerEmail,
-    organizationName
+    organizationName,
   );
 
   const planConfig = STRIPE_PLANS[plan];
@@ -65,7 +65,7 @@ export async function createCheckoutSession(
         quantity: 1,
       },
     ],
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?success=true`,
+    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?canceled=true`,
     metadata: {
       organizationId,
@@ -86,7 +86,7 @@ export async function createCheckoutSession(
  * Crée une session de portail client Stripe
  */
 export async function createPortalSession(
-  stripeCustomerId: string
+  stripeCustomerId: string,
 ): Promise<Stripe.BillingPortal.Session> {
   const session = await stripe.billingPortal.sessions.create({
     customer: stripeCustomerId,
@@ -107,7 +107,7 @@ export function stripePlanToPrisma(plan: StripePlanType): Plan {
  * Récupère les détails de la subscription Stripe
  */
 export async function getSubscriptionDetails(
-  subscriptionId: string
+  subscriptionId: string,
 ): Promise<Stripe.Subscription | null> {
   try {
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
@@ -122,7 +122,7 @@ export async function getSubscriptionDetails(
  * Annule une subscription à la fin de la période de facturation
  */
 export async function cancelSubscriptionAtPeriodEnd(
-  subscriptionId: string
+  subscriptionId: string,
 ): Promise<Stripe.Subscription> {
   const subscription = await stripe.subscriptions.update(subscriptionId, {
     cancel_at_period_end: true,
@@ -135,7 +135,7 @@ export async function cancelSubscriptionAtPeriodEnd(
  * Réactive une subscription annulée (avant la fin de la période)
  */
 export async function reactivateSubscription(
-  subscriptionId: string
+  subscriptionId: string,
 ): Promise<Stripe.Subscription> {
   const subscription = await stripe.subscriptions.update(subscriptionId, {
     cancel_at_period_end: false,
@@ -148,11 +148,9 @@ export async function reactivateSubscription(
  * Vérifie si une subscription est active
  */
 export function isSubscriptionActive(
-  subscription: Stripe.Subscription
+  subscription: Stripe.Subscription,
 ): boolean {
-  return (
-    subscription.status === "active" || subscription.status === "trialing"
-  );
+  return subscription.status === "active" || subscription.status === "trialing";
 }
 
 /**

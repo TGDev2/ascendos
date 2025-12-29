@@ -6,6 +6,7 @@ export interface RateLimitResult {
   limit: number;
   remaining: number;
   resetAt?: Date;
+  error?: "SERVICE_UNAVAILABLE";
 }
 
 export interface UsageResult {
@@ -32,7 +33,7 @@ export class RateLimiter {
 
     if (!url || !token) {
       console.warn(
-        "⚠️  Upstash Redis credentials not found. Rate limiting will fail open (allow all requests)."
+        "⚠️  Upstash Redis credentials not found. Rate limiting will fail open (allow all requests).",
       );
     }
 
@@ -50,7 +51,7 @@ export class RateLimiter {
     plan: Plan,
     organizationId: string,
     userId: string,
-    trialEndsAt?: Date | null
+    trialEndsAt?: Date | null,
   ): Promise<RateLimitResult> {
     try {
       // Vérifier si le trial est expiré (pour les orgs TRIAL)
@@ -70,7 +71,7 @@ export class RateLimiter {
       const { key, limit, ttl } = this.getLimitConfig(
         plan,
         organizationId,
-        userId
+        userId,
       );
 
       // Incrémenter le compteur atomiquement
@@ -100,12 +101,14 @@ export class RateLimiter {
         resetAt,
       };
     } catch (error) {
-      // En cas d'erreur Redis, fail open (allow request)
-      console.error("❌ Rate limiter error:", error);
+      // En cas d'erreur Redis, FAIL CLOSED pour les utilisateurs authentifiés (sécurité)
+      // On bloque par défaut pour éviter les abus en cas de panne Redis
+      console.error("❌ Rate limiter error (fail-closed):", error);
       return {
-        allowed: true,
+        allowed: false,
         limit: this.getPlanLimit(plan),
-        remaining: 999,
+        remaining: 0,
+        error: "SERVICE_UNAVAILABLE" as const,
       };
     }
   }
@@ -117,11 +120,11 @@ export class RateLimiter {
   async checkAnonymousRequest(ip: string): Promise<RateLimitResult> {
     try {
       // Normaliser l'IP (enlever les espaces, gérer IPv6, etc.)
-      const normalizedIp = ip.trim().split(',')[0].trim(); // Prendre la première IP si X-Forwarded-For contient plusieurs IPs
+      const normalizedIp = ip.trim().split(",")[0].trim(); // Prendre la première IP si X-Forwarded-For contient plusieurs IPs
 
-      if (!normalizedIp || normalizedIp === 'unknown') {
+      if (!normalizedIp || normalizedIp === "unknown") {
         // Si on ne peut pas déterminer l'IP, on bloque par sécurité
-        console.warn('⚠️  Unable to determine IP for anonymous request');
+        console.warn("⚠️  Unable to determine IP for anonymous request");
         return {
           allowed: false,
           limit: 1,
@@ -143,9 +146,10 @@ export class RateLimiter {
 
       // Calculer le resetAt
       const ttlRemaining = await this.redis.ttl(key);
-      const resetAt = ttlRemaining > 0
-        ? new Date(Date.now() + ttlRemaining * 1000)
-        : new Date(Date.now() + ttl * 1000);
+      const resetAt =
+        ttlRemaining > 0
+          ? new Date(Date.now() + ttlRemaining * 1000)
+          : new Date(Date.now() + ttl * 1000);
 
       const allowed = count <= limit;
       const remaining = Math.max(0, limit - count);
@@ -158,7 +162,7 @@ export class RateLimiter {
       };
     } catch (error) {
       // En cas d'erreur Redis, on BLOQUE par sécurité (fail closed pour les anonymes)
-      console.error('❌ Rate limiter error for anonymous request:', error);
+      console.error("❌ Rate limiter error for anonymous request:", error);
       return {
         allowed: false,
         limit: 1,
@@ -173,13 +177,13 @@ export class RateLimiter {
   async getUsage(
     plan: Plan,
     organizationId: string,
-    userId: string
+    userId: string,
   ): Promise<UsageResult> {
     try {
       const { key, limit, ttl } = this.getLimitConfig(
         plan,
         organizationId,
-        userId
+        userId,
       );
 
       const count = (await this.redis.get<number>(key)) || 0;
@@ -212,7 +216,7 @@ export class RateLimiter {
   private getLimitConfig(
     plan: Plan,
     organizationId: string,
-    userId: string
+    userId: string,
   ): { key: string; limit: number; ttl: number | null } {
     switch (plan) {
       case "TRIAL":
@@ -303,8 +307,8 @@ export class RateLimiter {
         0,
         0,
         0,
-        0
-      )
+        0,
+      ),
     );
     return Math.floor((midnight.getTime() - now.getTime()) / 1000);
   }
@@ -363,16 +367,18 @@ export class RateLimiter {
   /**
    * Récupère les IPs bloquées récemment (pour dashboard de monitoring)
    */
-  async getBlockedIPs(limit: number = 100): Promise<Array<{
-    ip: string;
-    reason: string;
-    timestamp: string;
-  }>> {
+  async getBlockedIPs(limit: number = 100): Promise<
+    Array<{
+      ip: string;
+      reason: string;
+      timestamp: string;
+    }>
+  > {
     try {
       const key = `blocked_ips:${this.getDateKey()}`;
-      const results = await this.redis.zrange(key, 0, limit - 1, {
+      const results = (await this.redis.zrange(key, 0, limit - 1, {
         rev: true, // Plus récents en premier
-      }) as string[];
+      })) as string[];
 
       return results.map((item) => JSON.parse(item));
     } catch (error) {
@@ -388,7 +394,7 @@ export class RateLimiter {
   async getIPBlockCount(ip: string): Promise<number> {
     try {
       const key = `blocked_ips:${this.getDateKey()}`;
-      const results = await this.redis.zrange(key, 0, -1) as string[];
+      const results = (await this.redis.zrange(key, 0, -1)) as string[];
 
       return results.filter((item) => {
         const data = JSON.parse(item);

@@ -18,6 +18,13 @@ export const billingRouter = createTRPCRouter({
   getStatus: protectedProcedure.query(async ({ ctx }) => {
     const org = await ctx.db.organization.findUnique({
       where: { id: ctx.orgId },
+      include: {
+        _count: {
+          select: {
+            projects: { where: { archived: false } },
+          },
+        },
+      },
     });
 
     if (!org) {
@@ -47,11 +54,16 @@ export const billingRouter = createTRPCRouter({
       generationsRemaining = Math.max(0, 5 - org.trialGenerations);
     }
 
+    // Extraire les counts et supprimer _count de la réponse
+    const { _count, ...orgWithoutCount } = org;
+
     return {
-      ...org,
+      ...orgWithoutCount,
       todayGenerations: todayUsage,
       trialDaysRemaining,
       generationsRemaining,
+      // Quotas
+      currentProjects: _count.projects,
     };
   }),
 

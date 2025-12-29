@@ -4,18 +4,52 @@ import { useState } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
-import { Plus, Archive, Folder, Clock, AlertCircle, CheckCircle2 } from "lucide-react";
+import { useReadOnlyMode } from "@/hooks/use-read-only-mode";
+import { usePaywall } from "@/hooks/use-paywall";
+import {
+  Plus,
+  Archive,
+  Folder,
+  Clock,
+  AlertCircle,
+  CheckCircle2,
+  Lock,
+} from "lucide-react";
 
 export default function ProjectsPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const { isReadOnly, message } = useReadOnlyMode();
+  const { plan } = usePaywall();
 
   const { data: projects, isLoading } = trpc.projects.list.useQuery({
     archived: showArchived,
   });
+
+  // Vérifier si la limite de projets est atteinte (TRIAL = 1 projet max)
+  const projectCount = projects?.length ?? 0;
+  const isProjectLimitReached = plan === "TRIAL" && projectCount >= 1;
+  const isCreateDisabled = isReadOnly || isProjectLimitReached;
+  const createDisabledMessage = isReadOnly
+    ? message
+    : isProjectLimitReached
+      ? "Limite de 1 projet atteinte. Passez au plan TEAM pour créer plus de projets."
+      : "";
 
   return (
     <div className="space-y-6">
@@ -27,10 +61,30 @@ export default function ProjectsPage() {
             Gérez vos projets et leurs updates hebdomadaires
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nouveau projet
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={isCreateDisabled ? 0 : -1}>
+                <Button
+                  onClick={() => setCreateDialogOpen(true)}
+                  disabled={isCreateDisabled}
+                >
+                  {isCreateDisabled ? (
+                    <Lock className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" />
+                  )}
+                  Nouveau projet
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {isCreateDisabled && (
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p>{createDisabledMessage}</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {/* Filters */}
@@ -149,10 +203,30 @@ export default function ProjectsPage() {
                 : "Créez votre premier projet pour commencer"}
             </p>
             {!showArchived && (
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Créer un projet
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={isCreateDisabled ? 0 : -1}>
+                      <Button
+                        onClick={() => setCreateDialogOpen(true)}
+                        disabled={isCreateDisabled}
+                      >
+                        {isCreateDisabled ? (
+                          <Lock className="mr-2 h-4 w-4" />
+                        ) : (
+                          <Plus className="mr-2 h-4 w-4" />
+                        )}
+                        Créer un projet
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {isCreateDisabled && (
+                    <TooltipContent className="max-w-xs">
+                      <p>{createDisabledMessage}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             )}
           </CardContent>
         </Card>

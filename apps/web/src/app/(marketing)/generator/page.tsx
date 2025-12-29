@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { SituationType } from "@ascendos/templates";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import { MasterProfileSelector } from "@/components/generator/master-profile-selector";
 import { SituationTypeSelector } from "@/components/generator/situation-type-selector";
 import { OutputPreview } from "@/components/generator/output-preview";
+import {
+  EmailCaptureModal,
+  hasEmailCaptured,
+} from "@/components/generator/email-capture-modal";
 import {
   ArrowRight,
   CheckCircle2,
@@ -43,7 +47,7 @@ export default function GeneratorPage() {
   const [masterProfile, setMasterProfile] =
     useState<string>("non-tech-confiant");
   const [situationType, setSituationType] = useState<SituationType>(
-    SituationType.NORMAL
+    SituationType.NORMAL,
   );
 
   // State pour le formulaire
@@ -59,6 +63,15 @@ export default function GeneratorPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [output, setOutput] = useState<GeneratedOutput>();
+
+  // State pour le modal de capture email
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailCaptured, setEmailCaptured] = useState(false);
+
+  // Vérifier si l'email a déjà été capturé au chargement
+  useEffect(() => {
+    setEmailCaptured(hasEmailCaptured());
+  }, []);
 
   const addFact = () => setFacts([...facts, { text: "" }]);
   const removeFact = (index: number) => {
@@ -83,7 +96,15 @@ export default function GeneratorPage() {
     }
   };
 
-  const handleGenerate = async () => {
+  // Fonction appelée quand l'email est capturé via le modal
+  const handleEmailCaptured = () => {
+    setEmailCaptured(true);
+    // Lancer la génération après capture
+    performGeneration();
+  };
+
+  // Fonction principale de génération
+  const performGeneration = async () => {
     setIsLoading(true);
     setError(undefined);
 
@@ -104,7 +125,7 @@ export default function GeneratorPage() {
 
       if (!response.ok) {
         throw new Error(
-          data.error || data.message || "Erreur lors de la génération"
+          data.error || data.message || "Erreur lors de la génération",
         );
       }
 
@@ -115,6 +136,16 @@ export default function GeneratorPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handler du bouton générer - affiche le modal si email pas encore capturé
+  const handleGenerate = async () => {
+    if (!emailCaptured) {
+      setShowEmailModal(true);
+      return;
+    }
+
+    performGeneration();
   };
 
   // Calculer le nombre d'éléments remplis
@@ -443,6 +474,13 @@ export default function GeneratorPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de capture email */}
+      <EmailCaptureModal
+        open={showEmailModal}
+        onOpenChange={setShowEmailModal}
+        onEmailCaptured={handleEmailCaptured}
+      />
     </div>
   );
 }

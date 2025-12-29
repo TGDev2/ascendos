@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { UserNav } from "@/components/dashboard/user-nav";
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 
 export default function DashboardLayout({
   children,
@@ -15,10 +16,10 @@ export default function DashboardLayout({
           <UserNav />
         </header>
 
-        {/* Main content */}
-        <main className="flex-1 overflow-auto p-6">
-          {children}
-        </main>
+        {/* Main content with read-only banner if applicable */}
+        <DashboardShell>
+          <main className="flex-1 overflow-auto p-6">{children}</main>
+        </DashboardShell>
       </div>
     </div>
   );

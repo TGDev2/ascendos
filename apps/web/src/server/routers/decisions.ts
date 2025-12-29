@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { TRPCError } from "@trpc/server";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  limitedProcedure,
+  isLimitReached,
+} from "../trpc";
 import {
   createDecisionSchema,
   updateDecisionSchema,
@@ -45,10 +51,7 @@ export const decisionsRouter = createTRPCRouter({
             },
           },
         },
-        orderBy: [
-          { decidedAt: "desc" },
-          { createdAt: "desc" },
-        ],
+        orderBy: [{ decidedAt: "desc" }, { createdAt: "desc" }],
         take: input.limit,
         skip: input.offset,
       });
@@ -90,19 +93,49 @@ export const decisionsRouter = createTRPCRouter({
       return decision;
     }),
 
-  create: protectedProcedure
+  create: limitedProcedure
     .input(createDecisionSchema)
     .mutation(async ({ ctx, input }) => {
+      // Vérifier le mode lecture seule
+      if (ctx.limits.isReadOnly) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Votre période d'essai a expiré. Passez au plan TEAM pour créer des décisions.",
+        });
+      }
+
       // Verify the project belongs to the organization
       const project = await ctx.db.project.findFirst({
         where: {
           id: input.projectId,
           organizationId: ctx.orgId,
         },
+        include: {
+          _count: {
+            select: { decisions: true },
+          },
+        },
       });
 
       if (!project) {
-        throw new Error("Project not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
+      }
+
+      // Vérifier la limite de décisions par projet
+      if (
+        isLimitReached(
+          project._count.decisions,
+          ctx.limits.maxDecisionsPerProject,
+        )
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Limite de ${ctx.limits.maxDecisionsPerProject} décisions par projet atteinte. Passez au plan supérieur.`,
+        });
       }
 
       return ctx.db.decision.create({
@@ -118,13 +151,24 @@ export const decisionsRouter = createTRPCRouter({
       });
     }),
 
-  update: protectedProcedure
+  update: limitedProcedure
     .input(
-      z.object({
-        id: z.string(),
-      }).merge(updateDecisionSchema)
+      z
+        .object({
+          id: z.string(),
+        })
+        .merge(updateDecisionSchema),
     )
     .mutation(async ({ ctx, input }) => {
+      // Vérifier le mode lecture seule
+      if (ctx.limits.isReadOnly) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Votre période d'essai a expiré. Passez au plan TEAM pour modifier des décisions.",
+        });
+      }
+
       const { id, ...data } = input;
 
       // First fetch the decision to verify ownership
@@ -140,11 +184,14 @@ export const decisionsRouter = createTRPCRouter({
       });
 
       if (!decision) {
-        throw new Error("Decision not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Decision not found",
+        });
       }
 
       if (decision.project.organizationId !== ctx.orgId) {
-        throw new Error("Unauthorized");
+        throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
       }
 
       return ctx.db.decision.update({
@@ -161,9 +208,18 @@ export const decisionsRouter = createTRPCRouter({
       });
     }),
 
-  delete: protectedProcedure
+  delete: limitedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      // Vérifier le mode lecture seule
+      if (ctx.limits.isReadOnly) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Votre période d'essai a expiré. Passez au plan TEAM pour supprimer des décisions.",
+        });
+      }
+
       // First fetch the decision to verify ownership
       const decision = await ctx.db.decision.findUnique({
         where: { id: input.id },
@@ -177,11 +233,14 @@ export const decisionsRouter = createTRPCRouter({
       });
 
       if (!decision) {
-        throw new Error("Decision not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Decision not found",
+        });
       }
 
       if (decision.project.organizationId !== ctx.orgId) {
-        throw new Error("Unauthorized");
+        throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
       }
 
       return ctx.db.decision.delete({

@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/data-purge",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-subscriptions",
+      "schedule": "0 * * * *"
     }
   ]
 }

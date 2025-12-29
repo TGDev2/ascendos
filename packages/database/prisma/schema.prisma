@@ -24,6 +24,12 @@ model Organization {
   trialEndsAt      DateTime?
   trialGenerations Int      @default(0)
 
+  // Plan Limits (Freemium)
+  // -1 = unlimited, defaults are for TRIAL plan
+  maxProjects             Int @default(1)    // TRIAL: 1, TEAM: 10, AGENCY: -1 (unlimited)
+  maxDecisionsPerProject  Int @default(10)   // TRIAL: 10, TEAM: 100, AGENCY: -1
+  maxRisksPerProject      Int @default(10)   // TRIAL: 10, TEAM: 100, AGENCY: -1
+
   // Stripe Integration
   stripeCustomerId       String?   @unique
   stripeSubscriptionId   String?   @unique
@@ -359,4 +365,30 @@ model UsageLog {
   @@index([userId, createdAt(sort: Desc)])
   @@index([action])
   @@index([organizationId, action, createdAt(sort: Desc)])
+}
+
+// ============================================================================
+// MARKETING LEADS (Funnel & Conversion Tracking)
+// ============================================================================
+
+model MarketingLead {
+  id          String   @id @default(cuid())
+
+  email       String   @unique
+  source      String   // "generator", "landing", "blog"
+  newsletter  Boolean  @default(false)
+
+  // Tracking
+  capturedAt  DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  convertedAt DateTime? // Quand l'utilisateur a créé un compte
+
+  // Lien avec l'utilisateur après conversion
+  userId      String?  @unique
+
+  metadata    Json?
+
+  @@index([source])
+  @@index([newsletter])
+  @@index([capturedAt(sort: Desc)])
 }
