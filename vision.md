@@ -1,159 +1,278 @@
-# Ascendos — vision produit (v0.1)
+# Ascendos — Vision produit v0.5
 
-## Résumé en une phrase
-Ascendos transforme des signaux de delivery (notes brutes, tickets, PR) en un update hebdo “prêt à envoyer” orienté décisions/risques, tout en construisant automatiquement un Dossier de continuité (log décisions + risques) consultable en 30 secondes quand ça chauffe.
+> **North Star :** Chaque chef de projet en agence envoie son update hebdo en moins de 2 minutes, sans stress politique, avec un dossier prêt quand ça chauffe.
 
-## Pourquoi ce produit existe
-Dans les agences/studios et chez les consultants en mission longue, le reporting hebdo vers un sponsor non-tech est à la fois chronophage (1–2h/semaine) et politiquement risqué. Le problème n’est pas “écrire mieux”, c’est éviter le flou, accélérer les validations, réduire les réunions de clarification et disposer d’une traçabilité simple (qui a décidé quoi, quand, sur quelles hypothèses) en cas d’escalade, COPIL, ou renouvellement.
+> **v0.5 en une ligne :** Un générateur d'updates sponsor-ready + registres décisions/risques auto-extraits = reporting hebdo divisé par 10 et preuve de continuité prête pour le jour J.
 
-## Noyau personnel (principe directeur)
-“NE SURPASSEZ JAMAIS LE MAÎTRE” = conception d’une communication ascendante qui rend le décideur plus à l’aise et plus en contrôle, sans manipulation ni mensonge.
-Concrètement, ce noyau influence :
-1) l’output : formulations orientées décisions, contrôle, arbitrages, et messages réutilisables par le sponsor vers son propre management ;
-2) l’expérience : profils “Maître” + garde-fous visibles (“mode ne pas faire d’ombre”) + templates de situations politiques (validation, risque, retard, arbitrage, pré-COPIL) ;
-3) la distribution : vente comme assurance anti-escalade + standard interne d’agence (pas comme un outil de rédaction).
+---
 
-## Cible initiale (ICP) — hyper précise
-Agences/studios web de 5 à 30 personnes en Europe (France d’abord), vendant au forfait et/ou en retainer à des PME, avec COPIL réguliers et sponsor non-tech.
-Utilisateurs : Head of Delivery / Chef de projet / CTO / lead dev faisant office de delivery.
-Payeur : l’agence (OPEX sur carte) ; cas secondaire : consultant indépendant en mission longue qui protège son retainer.
+## 1. Problème principal
 
-Déclencheurs d’achat (moments “chauds”) :
-- semaine pré-COPIL / comité projet
-- phase critique (recette, mise en prod, incident)
-- arbitrages nécessaires (scope, délais, budget)
-- renouvellement/renégociation de retainer
+**Les chefs de projet en agence perdent 1 à 2 heures par semaine à reformuler ce qu'ils savent déjà** — tickets, PR, notes — en un email "lisible" pour un sponsor non-tech.
 
-## Job-to-be-done (JTBD)
-“Quand je dois rendre des comptes chaque semaine à un sponsor non-tech (et parfois à mon N+1), je veux produire en moins de 10 minutes un message clair et politiquement ‘safe’ qui facilite les décisions et cadre les risques, tout en construisant une preuve de continuité réutilisable en cas d’escalade.”
+Ce temps perdu n'est pas le vrai problème. Le vrai problème :
 
-## Symptômes observables (douleur chiffrable)
-- 60 à 150 minutes/semaine à reconstruire “ce qui compte” depuis plusieurs sources
-- réunions supplémentaires (30–60 min) de clarification si l’update est vague ou trop technique
-- validations retardées (1–3 jours) faute de décision cadrée
-- risque business : perte de confiance -> escalade, réduction de scope, churn, retainer renégocié
+- **Risque politique** : un message mal calibré crée du doute, génère des réunions de clarification, retarde les validations
+- **Aucune traçabilité** : quand ça chauffe (COPIL, escalade, renewal), impossible de reconstruire "qui a décidé quoi, quand"
+- **Pas de standard** : chaque PM a son style, l'agence n'a pas de format cohérent
 
-Pourquoi les solutions actuelles ne suffisent pas :
-- Template + ChatGPT : non persistant, pas de rituel, pas d’historique structuré, dépend de la discipline et du contexte à recharger ; faible standardisation à l’échelle d’une agence
-- Notion/Google Docs : saisie manuelle, pas de garde-fous, pas d’extraction automatique décisions/risques, pas de “dossier 1 page” anti-escalade
-- Outils de gestion de projet : listes/tickets, pas de narration orientée sponsor ni de formulation “safe politiquement”
+**Coût réel** : perte de confiance sponsor → churn projet → retainer renégocié à la baisse.
 
-## Proposition de valeur (ce qui est vendu)
-- Réduction immédiate : “2 minutes le vendredi” au lieu de 1–2h de reporting + moins de réunions de clarification
-- Accélération : décisions mieux cadrées -> validations plus rapides
-- Assurance : “zéro flou hebdo” + dossier de continuité (décisions/risques) prêt quand la pression monte
-- Standardisation : même format et mêmes garde-fous pour toute l’agence
+---
 
-## Wedge (angle d’attaque)
-Entrée par un générateur gratuit d’update sponsor-ready (sans login) qui produit un résultat instantané.
-Conversion payante quand l’utilisateur veut : sauvegarder projets/profils, construire l’historique, exporter le “dossier 1 page”, recevoir les rappels, standardiser en équipe.
+## 2. Cible prioritaire (ICP)
 
-## Expérience utilisateur (flux bout en bout)
-1) Découverte : page “Générateur d’update sponsor-ready + dossier 1 page”
-2) Essai instantané : coller notes brutes + choisir situation + choisir profil Maître -> email + Slack + aperçu dossier
-3) Activation : création de compte pour sauvegarder projet, profils Maître, historique, export
-4) Rituel : rappel hebdo -> générer -> copier/coller (ou envoyer) -> le dossier s’enrichit
-5) Moments critiques : export “Dossier de continuité” pour COPIL / escalade / renewal / handover
+**Persona principal :**
+Chef de projet / Delivery Lead dans une **agence ou studio web français (5-25 personnes)**, qui :
 
-## Scope MVP (strict) — ce qui doit exister pour vendre
-1) Projets + profil “Maître” (3 presets au départ) + objectifs (rassurer, obtenir validation, préparer COPIL)
-2) Entrée cadrée : Faits / Décisions attendues / Risques (avec option coller brut -> suggestion de structure)
-3) Génération output : email + Slack, avec contraintes visibles (longueur max, ton, vocabulaire à éviter)
-4) Extraction & registres : log Décisions + log Risques (timeline simple)
-5) Historique hebdo par projet + recherche basique (par date / tag décision / tag risque)
-6) Export “Dossier 1 page” (HTML + PDF simple) + rappel hebdo
+- Gère 2 à 5 projets actifs simultanément
+- Rend des comptes chaque semaine à des sponsors non-tech (PME, ETI)
+- A déjà vécu une escalade ou un COPIL tendu
+- Paie ses outils sur carte (budget OPEX < 200€/mois sans validation)
 
-## Non-objectifs (anti scope creep)
-- Pas de gestion de tâches (on ne remplace pas Jira/Linear)
-- Pas de dashboards KPI / Gantt
-- Pas de collaboration complexe (workflows d’approbation, rôles avancés) dans le MVP
-- Pas d’intégrations multiples au départ ; une intégration “low effort” uniquement après signal payant
-- Pas de promesse de délivrabilité email (au début : copier/coller + option envoi plus tard)
-- Pas de “lecture automatique du repo” / accès profond aux données clientes
+**Persona secondaire :**
+Consultant indépendant en mission longue (6+ mois) qui protège son retainer et sa réputation.
 
-## Bibliothèque “situations politiques” (fondation différenciante)
-Le produit doit fournir des templates de situations qui ne se résument pas à “mieux écrire” :
-- Semaine normale (continuité + prochaine décision)
-- Validation attendue (call-to-action + échéance)
-- Semaine de risque (risque cadré + plan + date de revue)
-- Retard (cause factuelle + options + arbitrage)
-- Arbitrage scope/budget (options A/B/C + recommandation neutre)
-- Pré-COPIL (résumé + décisions + risques + questions)
+**Exclus (hors scope v0.5) :**
 
-## Garde-fous “Ne pas faire d’ombre” (règles de sortie)
-- Toujours attribuer les arbitrages/axes au sponsor quand c’est vrai (“suite à ton arbitrage…”, “conformément à la décision…”)
-- Privilégier la clarté et la maîtrise (“sous contrôle”, “plan de mitigation”, “date de revue”) plutôt que la virtuosité technique
-- Éviter le détail technique inutile ; conserver les preuves minimales (faits vérifiables)
-- Finir par une décision attendue claire ou une prochaine étape datée
+- Grands comptes / ESN (process d'achat trop long)
+- Équipes produit internes (pas le même JTBD)
+- Freelances en missions courtes (pas de rituel hebdo)
+
+---
+
+## 3. Proposition de valeur centrale
+
+**Pour le PM :**
+
+> "En 2 minutes le vendredi, j'ai un email prêt à envoyer qui dit exactement ce qu'il faut, dans le bon ton, sans oublier les décisions à prendre."
+
+**Pour l'agence :**
+
+> "On a un format standard pour tous nos projets, et un dossier 1 page prêt si un client escalade."
+
+**Ce qu'on vend vraiment :**
+
+1. **Temps** : 2 min au lieu de 60-90 min
+2. **Sérénité** : "sponsor-ready" = calibré politiquement
+3. **Assurance** : registres décisions/risques = preuve en cas d'escalade
+
+---
+
+## 4. Périmètre produit v0.5
+
+### Dans le scope (ce qui existe et doit être parfait)
+
+| Feature                          | Objectif                                                 | État             |
+| -------------------------------- | -------------------------------------------------------- | ---------------- |
+| **Générateur d'updates**         | Input brut → email + Slack prêts                         | ✅ Fonctionnel   |
+| **3 profils Maître**             | Non-tech confiant / Micro-manager / Comité risque-averse | ✅ Fonctionnel   |
+| **3 situations core**            | Normal / Validation / Risque                             | ✅ À privilégier |
+| **Extraction décisions/risques** | Auto-populate les registres                              | ✅ Fonctionnel   |
+| **Projets multiples**            | Jusqu'à 10 projets (TEAM)                                | ✅ Fonctionnel   |
+| **Historique updates**           | Timeline par projet, recherche                           | ✅ Fonctionnel   |
+| **Export dossier 1 page**        | HTML/PDF décisions + risques                             | ✅ Fonctionnel   |
+| **Billing Stripe**               | TRIAL → TEAM → AGENCY                                    | ✅ Fonctionnel   |
+
+### Hors scope v0.5 (volontairement)
+
+| Feature                                                     | Raison                                         |
+| ----------------------------------------------------------- | ---------------------------------------------- |
+| Envoi email natif                                           | Complexité délivrabilité, copier/coller suffit |
+| Intégrations Jira/Linear/GitHub                             | Distraction, pas de signal de demande          |
+| Rappels automatiques                                        | Nice-to-have, pas différenciant                |
+| Mode BYOK / confidentiel                                    | V0.7+, quand signal Agency fort                |
+| Templates situations avancés (Arbitrage, Pré-COPIL, Retard) | Simplifier d'abord, ajouter si demande         |
+| Collaboration temps réel                                    | Pas le JTBD (PM génère seul)                   |
+| Dashboard analytics                                         | Vanity metrics, pas de valeur                  |
+
+---
+
+## 5. Différenciation clé
+
+### Ce qui nous rend différents
+
+**1. Le principe "Ne surpassez jamais le Maître"**
+
+Pas juste un générateur de texte. Une **philosophie de communication ascendante** :
+
+- Toujours attribuer les arbitrages au sponsor quand c'est vrai
+- Éviter la virtuosité technique qui met le PM en avant
 - Ton : respectueux, sûr, non défensif, non triomphaliste
 
-## Packaging & prix (hypothèse initiale)
-Objectif : vendre un standard de reporting + dossier anti-escalade, pas un “générateur de texte”.
-- Team (par défaut) : 89€ HT/mois — jusqu’à 5 utilisateurs, 10 projets, templates situations, dossier 1 page, historique 12 mois
-- Agency : 169€ HT/mois — jusqu’à 15 utilisateurs, projets “raisonnables” illimités, historique 24 mois, exports multi-projets, presets standard interne
-- Add-on Confidentiel (optionnel) : 19€ HT/mois — BYOK + redaction renforcée + options purge
+→ Le sponsor se sent plus en contrôle, pas moins.
 
-Essai : 7 jours sans carte, limité à 5 générations et sans historique persistant ; payant requis pour sauvegarde + export.
+**2. Le dossier de continuité (vs. simple historique)**
 
-## Stratégie d’acquisition (sans audience)
-1) Outbound ciblé agences (Head of Delivery / CTO / PM) avec offre “rewrite + dossier 1 page” sur un update réel
-2) Partenariats légers (PMO / coach delivery / consultants) : co-brand + plan Agency partenaire
-3) SEO outil transactionnel (2–3 pages) : générateur + exemples + dossier 1 page
+Les concurrents génèrent du texte. Nous construisons une **preuve structurée** :
 
-## Mesures de succès (North Star + métriques)
-North Star : nombre de projets actifs avec 2 cycles hebdo consécutifs (rituel installé).
-Activation : % d’utilisateurs qui génèrent 2 semaines de suite sur un même projet.
-Value proof : % d’outputs envoyés “tel quel” (copié/collé ou envoi).
-Conversion : essai -> payant (cible 20–30% si la démo est forte).
-Rétention : churn mensuel cible 5% au début puis 3–4% en vitesse de croisière.
-Économie : ARPA cible 110€ (mix Team/Agency).
+- Registre décisions avec timeline et statuts
+- Registre risques avec sévérité et plans de mitigation
+- Export 1 page prêt pour COPIL / escalade / renewal
 
-## Plan de validation (7 jours)
-- Contacter 30 personnes ICP avec proposition : “colle ton update brut -> je renvoie version COPIL + dossier 1 page”
-- Mesurer 3 signaux forts :
-  - nombre d’inputs réels reçus (objectif ≥ 6)
-  - demandes explicites “je veux l’avoir en récurrent / comment je paie” (objectif ≥ 3)
-  - au moins 1 paiement founding ou engagement ferme
-- Test A/B manuel : update classique vs Ascendos “safe” (objectif ≥ 70% préfère Ascendos)
+→ Quand ça chauffe, on a 30 secondes pour prouver "qui a décidé quoi, quand".
 
-## Données, confidentialité, RGPD (principes MVP)
-- Minimisation : stocker le strict nécessaire (projet, registres, méta, historique) ; option “ne pas stocker le texte brut”
-- Purge automatique configurable (ex : 90 jours sur Team, 180/365 sur Agency)
-- Redaction : masque emails/numéros/noms si activé
-- Transparence LLM : indiquer clairement si un modèle externe est utilisé ; offrir BYOK “mode confidentiel”
-- Hébergement UE si possible (ou au minimum, documentation claire du traitement)
-- DPA simple disponible (page dédiée)
+**3. Profils Maître contextuels**
 
-## Positionnement (phrases testables)
-- “Zéro flou hebdo : un update prêt à envoyer + un dossier de continuité en 1 page.”
-- “Réduis les réunions de clarification, accélère les validations, sécurise le renouvellement.”
-- “Fais briller ton sponsor : décisions claires, risques cadrés, ton ‘safe’.”
+Pas de prompt générique. Des **contraintes calibrées** par type de sponsor :
 
-## Exemple d’output (mini démo)
-Entrée (notes brutes) :
-Faits : PR #182 règles livraison merged ; bug 231 erreurs 500 corrigé
-Décisions attendues : GO mise en prod ; arbitrage tracking
-Risques : retour Legal CGV pas reçu ; prestataire paiement indisponible jeudi
+- Vocabulaire à éviter / préférer
+- Longueur max adaptée
+- Structure de sortie différente
 
-Email généré (extrait) :
-Objet : COPIL — Avancement sous contrôle + décisions attendues (S50)
-“Bonjour Sophie, conformément à l’arbitrage sur le parcours de paiement, nous avons sécurisé cette semaine : intégration des règles de livraison et correction du pic d’erreurs observé mardi. Décision attendue avant jeudi 17h : validation GO mise en production (fenêtre vendredi 16h) + arbitrage tracking option A/B. Risques surveillés : retour Legal CGV (impact : validation bloquée) ; plan : proposer version A conservative, revue jeudi 12h. Prochaines 48h : finaliser tracking, obtenir validation Legal, préparer rollback.”
+→ Même input, output radicalement différent selon le sponsor.
 
-Dossier 1 page (extrait) :
-S49 — Décision : fenêtre de déploiement vendredi 16h
-S50 — Risque : Legal CGV (impact validation) ; plan : version A ; revue : jeudi 12h
-S50 — Décision attendue : GO prod + arbitrage tracking A/B
+### Ce qu'on ne cherche PAS à être
 
-## Questions ouvertes (à trancher par signaux)
-- Le déclencheur le plus vendeur : COPIL ? risque ? renewal ?
-- La friction acceptable : compte requis après combien de générations ?
-- Le “must-have” Agency : export multi-projets ou standard interne (templates) ?
-- Envoi email : utile tôt ou source de support/délivrabilité ?
-- Quel niveau de stockage les agences acceptent sans BYOK ?
+- Un ChatGPT avec un wrapper
+- Un outil de gestion de projet
+- Une plateforme de collaboration
+- Un CRM sponsors
 
-## Définition du “done” (MVP vendu)
-Le MVP est “done” quand :
-- 5 équipes l’utilisent 2 semaines de suite sur au moins 1 projet
-- 3 équipes paient (Team ou Agency)
-- l’export dossier est utilisé au moins 1 fois en situation réelle (COPIL / escalade / renewal)
-- le support reste gérable (≤ 30 min/jour) grâce aux presets + garde-fous + onboarding
+---
+
+## 6. Objectifs produit 3-6 mois
+
+### Métriques primaires
+
+| Métrique                                    | Cible 3 mois | Cible 6 mois |
+| ------------------------------------------- | ------------ | ------------ |
+| Organisations actives (2+ gen/sem)          | 30           | 100          |
+| Organisations payantes                      | 5            | 20           |
+| MRR                                         | 500€         | 2 000€       |
+| Exports dossier utilisés (situation réelle) | 1            | 5            |
+
+### Métriques d'activation
+
+| Métrique                                     | Cible  |
+| -------------------------------------------- | ------ |
+| % users qui génèrent 2 semaines consécutives | > 40%  |
+| % outputs copiés/envoyés "tel quel"          | > 60%  |
+| Trial → Payant                               | 15-20% |
+| Churn mensuel                                | < 8%   |
+
+### Jalons qualitatifs
+
+- [ ] 3 témoignages écrits de PM en agence
+- [ ] 1 cas d'usage dossier en escalade réelle documenté
+- [ ] 1 agence qui standardise sur Ascendos (3+ PM)
+
+---
+
+## 7. Anti-objectifs
+
+Ce que le produit **ne cherche PAS** à faire :
+
+1. **Remplacer la réflexion du PM** — L'outil structure et formule, il ne décide pas quoi dire
+2. **Automatiser la relation sponsor** — Pas de réponses auto, pas de chatbot, le PM reste l'interlocuteur
+3. **Devenir un outil de gestion de projet** — Pas de tâches, pas de Gantt, pas de backlog
+4. **Collecter des données sensibles** — Minimum nécessaire, pas de lecture de repos/tickets
+5. **Servir tous les cas d'usage** — Reporting hebdo sponsor uniquement, pas de communication interne
+6. **Croître par les features** — Croître par la valeur perçue et le bouche-à-oreille
+
+---
+
+## 8. Contraintes structurelles
+
+### Techniques
+
+- **LLM externe** : dépendance OpenAI/Anthropic (coût, latence, disponibilité)
+- **RGPD** : données projets = données sensibles, hébergement UE requis
+- **Multi-tenant** : isolation stricte par organisation, pas de cross-contamination
+
+### Business
+
+- **Cycle de vente court** : doit convaincre en < 5 min de test
+- **Budget OPEX** : < 200€/mois = décision PM seul, pas de procurement
+- **Churn saisonnier** : agences = projets finis = churn structurel
+
+### Produit
+
+- **Friction minimale** : générateur gratuit sans login = wedge d'acquisition
+- **Confiance** : données clients = responsabilité, pas de prompt injection, pas de fuite
+- **Rituel** : valeur = usage récurrent, pas one-shot
+
+---
+
+## 9. Principes directeurs
+
+**3 règles pour trancher les décisions produit :**
+
+### 1. "2 minutes le vendredi"
+
+Si une feature ralentit le temps de génération ou complexifie le flow, elle est rejetée. Le rituel doit rester ultra-rapide.
+
+### 2. "Le sponsor doit briller"
+
+Chaque output doit mettre le sponsor en position de contrôle. Si le PM "fait trop bien", on a raté.
+
+### 3. "Preuve > Prose"
+
+Le dossier de continuité (décisions + risques structurés) a plus de valeur que la qualité rédactionnelle de l'update. Prioriser l'extraction et la traçabilité.
+
+---
+
+## 10. Feuille de route simplifiée
+
+### v0.5 (actuel) — Fondations solides
+
+- Générateur + 3 profils + 3 situations core
+- Registres décisions/risques auto-extraits
+- Export dossier 1 page
+- Billing TRIAL/TEAM/AGENCY
+- Onboarding simplifié (< 2 min pour première génération)
+
+### v0.6 — Rétention
+
+- Rappels hebdo personnalisables
+- Templates de situations étendus (si demande)
+- Amélioration qualité extraction décisions/risques
+
+### v0.7 — Scale Agency
+
+- Mode confidentiel (BYOK)
+- Export multi-projets (vue agence)
+- Presets standards internes par organisation
+
+### v0.8+ — Intégrations (si signal fort)
+
+- Slack natif (envoi direct)
+- Import contexte depuis outils existants
+
+---
+
+## 11. Validation continue
+
+### Signaux à surveiller
+
+| Signal                     | Interprétation                   | Action                          |
+| -------------------------- | -------------------------------- | ------------------------------- |
+| Demandes BYOK récurrentes  | Agences avec contraintes sécu    | Prioriser v0.7                  |
+| Exports dossier fréquents  | Feature différenciante confirmée | Renforcer, documenter cas       |
+| Abandon après 1 génération | Onboarding ou qualité output     | A/B test prompts, simplifier    |
+| Demandes intégrations      | Dépend du volume et du profil    | Attendre 5+ demandes similaires |
+
+### Questions à résoudre par les données
+
+1. Quel profil Maître est le plus utilisé ? (→ prioriser son amélioration)
+2. Quelle situation génère le plus de valeur perçue ? (→ focus marketing)
+3. À quel moment les trials convertissent ? (→ optimiser le moment de paywall)
+
+---
+
+## Annexe : Ce que v0.5 retire de v0.1
+
+| Élément v0.1                                                            | Décision v0.5                                                         |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 6 situations (Normal, Validation, Risque, Retard, Arbitrage, Pré-COPIL) | Réduit à 3 core (Normal, Validation, Risque) — les autres sur demande |
+| Plan de validation 7 jours                                              | Supprimé (produit déjà construit)                                     |
+| Stratégie d'acquisition détaillée                                       | Hors scope vision, document séparé                                    |
+| Questions ouvertes                                                      | Tranchées ou supprimées                                               |
+| Add-on Confidentiel 19€                                                 | Reporté v0.7, intégré dans AGENCY si demande                          |
+| Exemple d'output détaillé                                               | Déplacé vers documentation marketing                                  |
+| Définition "done MVP"                                                   | Remplacé par objectifs 3-6 mois                                       |
+
+---
+
+_Dernière mise à jour : 29 décembre 2024_
+_Version : 0.5_
